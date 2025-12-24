@@ -1,1 +1,0 @@
-/usr/bin/g++ @CMakeFiles/practice_6_4.dir/objects1.rsp -o practice_6_4 @CMakeFiles/practice_6_4.dir/linkLibs.rsp -L"/usr/local/cuda-12.6/targets/x86_64-linux/lib/stubs" -L"/usr/local/cuda-12.6/targets/x86_64-linux/lib"
