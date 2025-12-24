@@ -5,7 +5,7 @@
 
 using namespace cooperative_groups;
 
-const int NUM_REPEATS = 20;
+const int NUM_REPEATS = 10;
 const int N = 1e8;
 const int M = sizeof(float) * N;
 const int GRID_SIZE2 = 10240;
@@ -23,20 +23,20 @@ int main() {
     float *d_x;
     CHECK_CUDA(cudaMalloc(&d_x, M));
 
-    // printf("\nGlobal Memory:\n");
-    // timing(h_x, d_x, 0); // 30ms, 123633392.000000, 精度为3位
-    // printf("\nShared Memory:\n");
-    // timing(h_x, d_x, 1); // 35ms, 123633392.000000, 精度为3位
-    // printf("\nDynamic Shared Memory:\n");
-    // timing(h_x, d_x, 2); // 35ms, 123633392.000000, 精度为3位
-    // printf("\nDynamic Shared Memory with AtomicAdd:\n");
-    // timing(h_x, d_x, 3); // 37ms, 123633392.000000, 精度为3位
-    // printf("\nDynamic Shared Memory with AtomicAdd, syncwarp:\n");
-    // timing(h_x, d_x, 4); // 45ms, 123633392.000000, 精度为3位
-    // printf("\nDynamic Shared Memory with AtomicAdd, shuffle:\n");
-    // timing(h_x, d_x, 5); // 52ms, 123633392.000000, 精度为3位
-    // printf("\nDynamic Shared Memory with AtomicAdd, shuffle, cooperative_group:\n");
-    // timing(h_x, d_x, 6); // 303ms, 123633392.000000, 精度为3位
+    printf("\nGlobal Memory:\n");
+    timing(h_x, d_x, 0); // 30ms, 123633392.000000, 精度为3位
+    printf("\nShared Memory:\n");
+    timing(h_x, d_x, 1); // 35ms, 123633392.000000, 精度为3位
+    printf("\nDynamic Shared Memory:\n");
+    timing(h_x, d_x, 2); // 35ms, 123633392.000000, 精度为3位
+    printf("\nDynamic Shared Memory with AtomicAdd:\n");
+    timing(h_x, d_x, 3); // 37ms, 123633392.000000, 精度为3位
+    printf("\nDynamic Shared Memory with AtomicAdd, syncwarp:\n");
+    timing(h_x, d_x, 4); // 45ms, 123633392.000000, 精度为3位
+    printf("\nDynamic Shared Memory with AtomicAdd, shuffle:\n");
+    timing(h_x, d_x, 5); // 52ms, 123633392.000000, 精度为3位
+    printf("\nDynamic Shared Memory with AtomicAdd, shuffle, cooperative_group:\n");
+    timing(h_x, d_x, 6); // 303ms, 123633392.000000, 精度为3位
     printf("\nDynamic Shared Memory with shuffle, cooperative_group, cross-grid:\n");
     timing(h_x, d_x, 7); // 6.6ms, 123000064.000000, 精度为7位
     printf("\nDynamic Shared Memory with shuffle, cooperative_group, cross-grid, static-memory:\n");
@@ -310,6 +310,7 @@ float reduce(float *d_x, const int method) {
     free(h_y2);
     CHECK_CUDA(cudaFree(d_y));
     CHECK_CUDA(cudaFree(d_y2));
+    CHECK_CUDA(cudaFree(d_y3));
     return result;
 }
 
