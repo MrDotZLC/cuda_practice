@@ -1,0 +1,38 @@
+[
+{
+  "directory": "/home/mr-zlch/cuda_practice/build/0_cuda_programming_study",
+  "command": "/usr/local/cuda-12.6/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/practice_6_4.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_52,code=[compute_52,sm_52]\" -G -x cu -c /home/mr-zlch/cuda_practice/0_cuda_programming_study/practice_6_4.cu -o CMakeFiles/practice_6_4.dir/practice_6_4.cu.o",
+  "file": "/home/mr-zlch/cuda_practice/0_cuda_programming_study/practice_6_4.cu",
+  "output": "0_cuda_programming_study/CMakeFiles/practice_6_4.dir/practice_6_4.cu.o"
+},
+{
+  "directory": "/home/mr-zlch/cuda_practice/build/0_cuda_programming_study",
+  "command": "/usr/local/cuda-12.6/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/recude_cpu.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_52,code=[compute_52,sm_52]\" -G -x cu -c /home/mr-zlch/cuda_practice/0_cuda_programming_study/recude_cpu.cu -o CMakeFiles/recude_cpu.dir/recude_cpu.cu.o",
+  "file": "/home/mr-zlch/cuda_practice/0_cuda_programming_study/recude_cpu.cu",
+  "output": "0_cuda_programming_study/CMakeFiles/recude_cpu.dir/recude_cpu.cu.o"
+},
+{
+  "directory": "/home/mr-zlch/cuda_practice/build/0_cuda_programming_study",
+  "command": "/usr/local/cuda-12.6/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/reduce_gpu.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_52,code=[compute_52,sm_52]\" -G -x cu -c /home/mr-zlch/cuda_practice/0_cuda_programming_study/reduce_gpu.cu -o CMakeFiles/reduce_gpu.dir/reduce_gpu.cu.o",
+  "file": "/home/mr-zlch/cuda_practice/0_cuda_programming_study/reduce_gpu.cu",
+  "output": "0_cuda_programming_study/CMakeFiles/reduce_gpu.dir/reduce_gpu.cu.o"
+},
+{
+  "directory": "/home/mr-zlch/cuda_practice/build/0_cuda_programming_study",
+  "command": "/usr/local/cuda-12.6/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/test.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_52,code=[compute_52,sm_52]\" -G -x cu -c /home/mr-zlch/cuda_practice/0_cuda_programming_study/test.cu -o CMakeFiles/test.dir/test.cu.o",
+  "file": "/home/mr-zlch/cuda_practice/0_cuda_programming_study/test.cu",
+  "output": "0_cuda_programming_study/CMakeFiles/test.dir/test.cu.o"
+},
+{
+  "directory": "/home/mr-zlch/cuda_practice/build/0_cuda_programming_study",
+  "command": "/usr/local/cuda-12.6/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/transpose.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_52,code=[compute_52,sm_52]\" -G -x cu -c /home/mr-zlch/cuda_practice/0_cuda_programming_study/transpose.cu -o CMakeFiles/transpose.dir/transpose.cu.o",
+  "file": "/home/mr-zlch/cuda_practice/0_cuda_programming_study/transpose.cu",
+  "output": "0_cuda_programming_study/CMakeFiles/transpose.dir/transpose.cu.o"
+},
+{
+  "directory": "/home/mr-zlch/cuda_practice/build/1_cuda_reduce_study",
+  "command": "/usr/local/cuda-12.6/bin/nvcc -forward-unknown-to-host-compiler  --options-file CMakeFiles/my_reduce_v0_global_memory.dir/includes_CUDA.rsp -g -std=c++17 \"--generate-code=arch=compute_52,code=[compute_52,sm_52]\" -G -x cu -c /home/mr-zlch/cuda_practice/1_cuda_reduce_study/my_reduce_v0_global_memory.cu -o CMakeFiles/my_reduce_v0_global_memory.dir/my_reduce_v0_global_memory.cu.o",
+  "file": "/home/mr-zlch/cuda_practice/1_cuda_reduce_study/my_reduce_v0_global_memory.cu",
+  "output": "1_cuda_reduce_study/CMakeFiles/my_reduce_v0_global_memory.dir/my_reduce_v0_global_memory.cu.o"
+}
+]

@@ -1,0 +1,137 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1,
+						2
+					],
+					"jsonFile" : "directory-.-Debug-f5ebdc15457944623624.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.20.0"
+					},
+					"projectIndex" : 0,
+					"source" : "."
+				},
+				{
+					"build" : "0_cuda_programming_study",
+					"jsonFile" : "directory-0_cuda_programming_study-Debug-e1d1c93519ef6e441809.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.20.0"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "0_cuda_programming_study",
+					"targetIndexes" : 
+					[
+						1,
+						2,
+						3,
+						4,
+						5
+					]
+				},
+				{
+					"build" : "1_cuda_reduce_study",
+					"jsonFile" : "directory-1_cuda_reduce_study-Debug-01e6d9af593f83b5a8bb.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.20.0"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "1_cuda_reduce_study",
+					"targetIndexes" : 
+					[
+						0
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0,
+						1,
+						2
+					],
+					"name" : "cuda_practice",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4,
+						5
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 2,
+					"id" : "my_reduce_v0_global_memory::@214aa2a4a787257b8b5d",
+					"jsonFile" : "target-my_reduce_v0_global_memory-Debug-79e08a0231f12ecedf64.json",
+					"name" : "my_reduce_v0_global_memory",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "practice_6_4::@1162ee23b455ccd74edc",
+					"jsonFile" : "target-practice_6_4-Debug-34e3075d566a5f716439.json",
+					"name" : "practice_6_4",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "recude_cpu::@1162ee23b455ccd74edc",
+					"jsonFile" : "target-recude_cpu-Debug-07f59e2431058d9a75af.json",
+					"name" : "recude_cpu",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "reduce_gpu::@1162ee23b455ccd74edc",
+					"jsonFile" : "target-reduce_gpu-Debug-a2147ab25fc84f40d9bf.json",
+					"name" : "reduce_gpu",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "test::@1162ee23b455ccd74edc",
+					"jsonFile" : "target-test-Debug-51a940124ef08bff6ceb.json",
+					"name" : "test",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "transpose::@1162ee23b455ccd74edc",
+					"jsonFile" : "target-transpose-Debug-9c3b1d89efddfb9aba62.json",
+					"name" : "transpose",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/mr-zlch/cuda_practice/build",
+		"source" : "/home/mr-zlch/cuda_practice"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 6
+	}
+}

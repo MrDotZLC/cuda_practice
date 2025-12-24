@@ -1,0 +1,12 @@
+/home/mr-zlch/cuda_practice/build/CMakeFiles/edit_cache.dir
+/home/mr-zlch/cuda_practice/build/CMakeFiles/rebuild_cache.dir
+/home/mr-zlch/cuda_practice/build/0_cuda_programming_study/CMakeFiles/practice_6_4.dir
+/home/mr-zlch/cuda_practice/build/0_cuda_programming_study/CMakeFiles/recude_cpu.dir
+/home/mr-zlch/cuda_practice/build/0_cuda_programming_study/CMakeFiles/reduce_gpu.dir
+/home/mr-zlch/cuda_practice/build/0_cuda_programming_study/CMakeFiles/test.dir
+/home/mr-zlch/cuda_practice/build/0_cuda_programming_study/CMakeFiles/transpose.dir
+/home/mr-zlch/cuda_practice/build/0_cuda_programming_study/CMakeFiles/edit_cache.dir
+/home/mr-zlch/cuda_practice/build/0_cuda_programming_study/CMakeFiles/rebuild_cache.dir
+/home/mr-zlch/cuda_practice/build/1_cuda_reduce_study/CMakeFiles/my_reduce_v0_global_memory.dir
+/home/mr-zlch/cuda_practice/build/1_cuda_reduce_study/CMakeFiles/edit_cache.dir
+/home/mr-zlch/cuda_practice/build/1_cuda_reduce_study/CMakeFiles/rebuild_cache.dir

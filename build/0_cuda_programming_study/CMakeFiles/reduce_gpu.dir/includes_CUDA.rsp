@@ -1,0 +1,1 @@
+-I"/home/mr-zlch/cuda_practice/include" -isystem "/usr/local/cuda-12.6/targets/x86_64-linux/include"

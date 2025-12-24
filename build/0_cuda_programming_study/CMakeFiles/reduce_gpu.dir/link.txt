@@ -1,0 +1,1 @@
+/usr/bin/g++ @CMakeFiles/reduce_gpu.dir/objects1.rsp -o reduce_gpu @CMakeFiles/reduce_gpu.dir/linkLibs.rsp -L"/usr/local/cuda-12.6/targets/x86_64-linux/lib/stubs" -L"/usr/local/cuda-12.6/targets/x86_64-linux/lib"
