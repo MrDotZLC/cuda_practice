@@ -2,7 +2,7 @@
 #include <cmath>
 #include <cstdio>
 
-const int NUM_REPEATS = 10;
+const int NUM_REPEATS = 20;
 const int N = 1 << 22;
 const int M = sizeof(float) * N;
 const int MAX_NUM_STREAMS = 64;
@@ -10,7 +10,7 @@ cudaStream_t streams[MAX_NUM_STREAMS];
 
 void timing(const float *h_x, const float *h_y, float *h_z,
             float *d_x, float *d_y, float *d_z,
-            const int num
+            const int num_stream
            );
 
 int main(int argc, char *argv[])
@@ -35,9 +35,9 @@ int main(int argc, char *argv[])
         CHECK_CUDA(cudaStreamCreate(&(streams[i])));
     }
 
-    for (int num = 1; num <= MAX_NUM_STREAMS; num *= 2)
+    for (int num_stream = 1; num_stream <= MAX_NUM_STREAMS; num_stream *= 2)
     {
-        timing(h_x, h_y, h_z, d_x, d_y, d_z, num);
+        timing(h_x, h_y, h_z, d_x, d_y, d_z, num_stream);
     }
 
     for (int i = 0 ; i < MAX_NUM_STREAMS; i++)
@@ -60,55 +60,54 @@ void __global__ add(const float *x, const float *y, float *z, int N)
     const int n = blockDim.x * blockIdx.x + threadIdx.x;
     if (n < N)
     {
-        for (int i = 0; i < 40; ++i)
-        {
-            z[n] = x[n] + y[n];
-        }
+        // 轻量计算，但比单纯加法重一点
+        float tmp = x[n];
+        for (int i = 0; i < 50; ++i)
+            tmp = tmp * 1.000001f + y[n];
+        z[n] = tmp;
     }
 }
 
 void timing(const float *h_x, const float *h_y, float *h_z,
             float *d_x, float *d_y, float *d_z, 
-            const int num)
+            const int num_stream)
 {
-    int N1 = N / num;
-    int M1 = M / num;
+    int N1 = N / num_stream;
+    int M1 = M / num_stream;
+
+    int block_size = 128;
+    int grid_size = (N1 - 1) / block_size + 1;
     
     float t_sum = 0;
     float t2_sum = 0;
 
-    for (int repeat = 0; repeat <= NUM_REPEATS; ++repeat)
+    for (int repeat = 0; repeat < NUM_REPEATS; ++repeat)
     {
         cudaEvent_t start, stop;
         CHECK_CUDA(cudaEventCreate(&start));
         CHECK_CUDA(cudaEventCreate(&stop));
-        CHECK_CUDA(cudaEventRecord(start));
-        cudaEventQuery(start);
+        CHECK_CUDA(cudaEventRecord(start, 0));
 
-        for (int i = 0; i < num; i++)
+        for (int i = 0; i < num_stream; i++)
         {
             int offset = i * N1;
             CHECK_CUDA(cudaMemcpyAsync(d_x + offset, h_x + offset, M1, cudaMemcpyHostToDevice, streams[i]));
             CHECK_CUDA(cudaMemcpyAsync(d_y + offset, h_y + offset, M1, cudaMemcpyHostToDevice, streams[i]));
             
-            int block_size = 128;
-            int grid_size = (N1 - 1) / block_size + 1;
+            
             add<<<grid_size, block_size, 0, streams[i]>>>
             (d_x + offset, d_y + offset, d_z + offset, N1);
 
             CHECK_CUDA(cudaMemcpyAsync(h_z + offset, d_z + offset, M1, cudaMemcpyDeviceToHost, streams[i]));
         }
 
-        CHECK_CUDA(cudaEventRecord(stop));
+        CHECK_CUDA(cudaDeviceSynchronize());
+        CHECK_CUDA(cudaEventRecord(stop, 0));
         CHECK_CUDA(cudaEventSynchronize(stop));
         float elapsed_time;
         CHECK_CUDA(cudaEventElapsedTime(&elapsed_time, start, stop));
-
-        if (repeat > 0)
-        {
-            t_sum += elapsed_time;
-            t2_sum += elapsed_time * elapsed_time;
-        }
+        t_sum += elapsed_time;
+        t2_sum += elapsed_time * elapsed_time;
 
         CHECK_CUDA(cudaEventDestroy(start));
         CHECK_CUDA(cudaEventDestroy(stop));
@@ -116,5 +115,5 @@ void timing(const float *h_x, const float *h_y, float *h_z,
     }
     const float t_ave = t_sum / NUM_REPEATS;
     const float t_err = sqrt(t2_sum / NUM_REPEATS - t_ave * t_ave);
-    printf("%d %g\n", num, t_ave);
+    printf("%d %g\n", num_stream, t_ave);
 }
