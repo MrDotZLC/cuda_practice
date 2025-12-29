@@ -310,7 +310,7 @@ float reduce(float *d_x, const int method) {
     free(h_y2);
     CHECK_CUDA(cudaFree(d_y));
     CHECK_CUDA(cudaFree(d_y2));
-    CHECK_CUDA(cudaFree(d_y3));
+    // CHECK_CUDA(cudaFree(d_y3));
     return result;
 }
 
