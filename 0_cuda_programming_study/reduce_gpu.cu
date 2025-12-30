@@ -315,7 +315,7 @@ float reduce(float *d_x, const int method) {
 }
 
 void timing(float *h_x, float *d_x, const int method) {
-    float sum = 0;
+    float sum = 0, t_avg = 0;
     for (int repeat = 0; repeat < NUM_REPEATS; repeat++) {
         CHECK_CUDA(cudaMemcpy(d_x, h_x, M, cudaMemcpyHostToDevice));
         cudaEvent_t start, stop;
@@ -329,10 +329,11 @@ void timing(float *h_x, float *d_x, const int method) {
         CHECK_CUDA(cudaEventSynchronize(stop));
         float elapsed_time;
         CHECK_CUDA(cudaEventElapsedTime(&elapsed_time, start, stop));
-        printf("Time = %g ms.\n", elapsed_time);
+        t_avg += elapsed_time;
 
         CHECK_CUDA(cudaEventDestroy(start));
         CHECK_CUDA(cudaEventDestroy(stop));
     }
-    printf("sum = %f.\n", sum);
+    t_avg /= NUM_REPEATS;
+    printf("sum = %.6f, average_time=%.6f\n", sum, t_avg);
 }

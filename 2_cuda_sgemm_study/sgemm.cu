@@ -1,0 +1,271 @@
+#include "error.cuh"
+#include <cstdio>
+
+const int NUM_REPEATS = 3;
+const int M = 2048 / 4;
+const int N = 2048 / 4;
+const int K = 2048 / 4;
+const int TILE = 16;
+const int STRIDE = 2; 
+
+#define A(i, j) a[(i) * n + (j)]
+#define B(i, j) b[(i) * n + (j)]
+
+void random_matrix(int m, int n, float *a) {
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+#if 1
+            A(i, j) = 2.0 * (float)drand48() - 1.0;
+#else
+            A(i, j) = (j - i) % 3;
+#endif
+        }
+    }
+}   
+
+float compare_matrices(int m, int n, float *a, float *b) {
+    // int i, j;
+    float max_diff = 0.0, diff;
+    int printed = 0;
+
+    for (int i = 0; i < m; i++) {
+        for (int j = 0; j < n; j++) {
+            diff = abs(A(i, j) - B(i, j));
+            max_diff = diff > max_diff ? diff : max_diff;
+            if (printed == 0) {
+                if (max_diff > 0.5f) {
+                    printf("\nError: i %d j %d diff %f got %f expect %f\n", i, j, max_diff, A(i, j), B(i, j));
+                    printed = 1;
+                }
+            }
+        }
+    }
+    return max_diff;
+}
+
+// 使用CPU计算
+void sgemm0(const float *a, const float *b, float *c) {
+    for (int m = 0 ; m < M; m++) {
+        for (int n = 0; n < N; n++) {
+            float temp = 0.f;
+            for (int k = 0; k < K; k++) {
+                temp += a[m * K + k] * b[k * N + n];
+            }
+            c[m * N + n] = temp;
+        }
+    }
+}
+
+// 使用GPU全局内存
+__global__ void sgemm1(float *a, float *b, float *c) {
+    const int col= threadIdx.x + blockDim.x * blockIdx.x;
+    const int row = threadIdx.y + blockDim.y * blockIdx.y;
+    float *a_begin = a + blockDim.y * blockIdx.y * K;
+    float *b_begin = b + blockDim.x * blockIdx.x;
+    float temp = 0.f;
+
+    for (int k = 0; k < K; k++) {
+        temp += a_begin[threadIdx.y * K + k] * b_begin[k * N + threadIdx.x];
+    }
+    c[row * N + col] = temp;
+}
+
+// 使用GPU共享内存：整个A所需的TILE*K和B所需的K*TILE存入共享内存
+// 会出现内存不够分配 或者 恰好够存储但不够计算（结果为0或者debug跳过核函数）
+__global__ void sgemm2(float *a, float *b, float *c) {
+    const int col = threadIdx.x + blockDim.x * blockIdx.x;
+    const int row = threadIdx.y + blockDim.y * blockIdx.y;
+    float *a_begin = a + blockDim.y * blockIdx.y * K; // a行固定列遍历 
+    float *b_begin = b + blockDim.x * blockIdx.x;     // b列固定行遍历
+
+    __shared__ float a_shared[TILE][K];
+    __shared__ float b_shared[K][TILE];
+    
+    for (int s = 0; s < K; s += TILE) {
+        a_shared[threadIdx.y][threadIdx.x + s] = 
+                a_begin[threadIdx.y * K + threadIdx.x + s];
+        b_shared[threadIdx.y + s][threadIdx.x] = 
+                b_begin[(threadIdx.y + s) * N + threadIdx.x];
+    }
+    __syncthreads();
+
+    float temp = 0.f;
+    for (int k = 0; k < K; k++) {
+        temp += a_shared[threadIdx.y][k] * b_shared[k][threadIdx.x];
+    }
+    if (row < M && col < N) {
+        c[row * N + col] = temp;
+    }
+}
+
+// 使用GPU共享内存：分块存入Shared Memory并计算
+__global__ void sgemm3(float *a, float *b, float *c) {
+    const int col = threadIdx.x + blockDim.x * blockIdx.x;
+    const int row = threadIdx.y + blockDim.y * blockIdx.y;
+    float *a_begin = a + blockDim.y * blockIdx.y * K; // a行固定列遍历 
+    float *b_begin = b + blockDim.x * blockIdx.x;     // b列固定行遍历
+
+    __shared__ float a_shared[TILE][TILE];
+    __shared__ float b_shared[TILE][TILE];
+    
+    float temp = 0.f;
+    for (int s = 0; s < K; s += TILE) {
+        a_shared[threadIdx.y][threadIdx.x] = 
+                a_begin[threadIdx.y * K + threadIdx.x + s];
+        b_shared[threadIdx.y][threadIdx.x] = 
+                b_begin[(threadIdx.y + s) * N + threadIdx.x];
+        __syncthreads();
+        for (int k = 0; k < TILE; k++) {
+            temp += a_shared[threadIdx.y][k] * b_shared[k][threadIdx.x];
+        }
+        __syncthreads();
+    }
+    if (row < M && col < N) {
+        c[row * N + col] = temp;
+    }
+}
+
+// 每个线程增加工作量：减少Block数量
+__global__ void sgemm4(float *a, float *b, float *c) {
+    const int step = TILE * STRIDE;
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+    float *a_begin = a + step * blockIdx.y * K; // a行固定列遍历 
+    float *b_begin = b + step * blockIdx.x;     // b列固定行遍历
+    float *c_begin = c + step * blockIdx.y * M + step * blockIdx.x;
+
+    __shared__ float a_shared[step][step];
+    __shared__ float b_shared[step][step];
+    
+    float temp[STRIDE][STRIDE] = {{0.f, 0.f}, {0.f, 0.f}};
+
+    for (int s = 0; s < K; s += step) {
+        for (int i = 0; i < STRIDE; i++) {
+            for (int j = 0; j < STRIDE; j++) {
+                a_shared[ty + i * TILE][tx + j * TILE] = a_begin[(ty + i * TILE) * K + tx + j * TILE + s];
+                b_shared[ty + i * TILE][tx + j * TILE] = b_begin[(ty + i * TILE + s) * N + tx + j * TILE];
+            }
+        }
+        __syncthreads();
+        for (int i = 0; i < STRIDE; i++) {
+            for (int j = 0; j < STRIDE; j++) {
+                for (int k = 0; k < step; k++) {
+                    temp[i][j] += a_shared[ty + i * TILE][k] * b_shared[k][tx + j * TILE];
+                }
+            }
+        }
+        __syncthreads();
+    }
+    for (int i = 0; i < STRIDE; i++) {
+        for (int j = 0; j < STRIDE; j++) {
+            c_begin[(ty + i * TILE) * N + tx + j * TILE] = temp[i][j];
+        }
+    }
+}
+
+void sgemm(float *a, float *b, float *c, const int method) {
+    dim3 block0(TILE, TILE);
+    // 设置列0主序，threadIdx.x为列下标且连续，因历史原因cuda中矩阵常为列主序
+    dim3 grid0((N + TILE - 1) / TILE, (M + TILE - 1) / TILE);
+    dim3 grid1((N + TILE - 1) / TILE / STRIDE, (M + TILE - 1) / TILE / STRIDE);
+
+    switch (method) {
+    case 0:
+        sgemm0(a, b, c);
+        break;
+    case 1:
+        sgemm1<<<grid0, block0>>>(a, b, c);
+        break;
+    case 2:
+        sgemm2<<<grid0, block0>>>(a, b, c);
+        break;
+    case 3:
+        sgemm3<<<grid0, block0>>>(a, b, c);
+        break;
+    case 4:
+        sgemm4<<<grid1, block0>>>(a, b, c);
+        break;
+    default:
+        printf("Error: wrong method\n");
+        exit(1);
+        break;
+    }
+}
+
+void timing(float *a, float *b, float *c, const int method) {
+    float t_avg = 0.f;
+    for (int repeat = 0; repeat < NUM_REPEATS; repeat++) {
+        cudaEvent_t start, stop;
+        CHECK_CUDA(cudaEventCreate(&start));
+        CHECK_CUDA(cudaEventCreate(&stop));
+        CHECK_CUDA(cudaEventRecord(start));
+        cudaEventQuery(start);
+
+        sgemm(a, b, c, method);
+
+        CHECK_CUDA(cudaEventRecord(stop));
+        CHECK_CUDA(cudaEventSynchronize(stop));
+        float elapsed_time;
+        CHECK_CUDA(cudaEventElapsedTime(&elapsed_time, start, stop));
+        t_avg += elapsed_time;
+
+        CHECK_CUDA(cudaEventDestroy(start));
+        CHECK_CUDA(cudaEventDestroy(stop));
+    }
+    t_avg /= NUM_REPEATS;
+    printf("Average Time = %.6f ms.\n", t_avg);
+}
+
+int main() {
+    const size_t a_mem = M * K * sizeof(float);
+    const size_t b_mem = K * N * sizeof(float);
+    const size_t c_mem = M * N * sizeof(float);
+    
+    float *a_host = (float *)malloc(a_mem);
+    float *b_host = (float *)malloc(b_mem);
+    float *c_host_cpu = (float *)malloc(c_mem);
+    float *c_host_gpu = (float *)malloc(c_mem);
+    
+    random_matrix(M, K, a_host);
+    random_matrix(K, N, b_host);
+    memset(c_host_cpu, 0, c_mem);
+    memset(c_host_gpu, 0, c_mem);
+
+    float *a_device, *b_device, *c_device;
+    CHECK_CUDA(cudaMalloc((void **)&a_device, a_mem));
+    CHECK_CUDA(cudaMalloc((void **)&b_device, b_mem));
+    CHECK_CUDA(cudaMalloc((void **)&c_device, c_mem));
+
+    CHECK_CUDA(cudaMemcpy(a_device, a_host, a_mem, cudaMemcpyHostToDevice));
+    CHECK_CUDA(cudaMemcpy(b_device, b_host, b_mem, cudaMemcpyHostToDevice));
+
+    printf("\nsGEmm v0 CPU:                               "); // CPU
+    timing(a_host, b_host, c_host_cpu, 0);      // 2MNK,             MN, 455.0ms
+    printf("\nsGEmm v1 GPU Global Memory:                 "); // GPU
+    timing(a_device, b_device, c_device, 1);    // MNK(1/bn + 1/bm), MN, 47.0ms
+    // printf("\nsGEmm v2 GPU Shared Memory with TILE * K    "); // SM with TILE*K
+    // timing(a_device, b_device, c_device, 2);    // error: Shared Memory limit exceeded
+    printf("\nsGEmm v3 GPU Shared Memory with TILE * TILE "); // SM with TILE*TILE
+    timing(a_device, b_device, c_device, 3);    // MNK(1/bn + 1/bm), MN, 47.0ms
+    printf("\nsGEmm v4 GPU Increase Work of Per Thread    "); // more work per thread
+    timing(a_device, b_device, c_device, 4);    // MNK(1/bn + 1/bm), MN, 47.0ms
+    
+    CHECK_CUDA(cudaMemcpy(c_host_gpu, c_device, c_mem, cudaMemcpyDeviceToHost));
+
+    float diff = compare_matrices(M, N, c_host_cpu, c_host_gpu);
+    if (diff > 0.5f) {
+        printf("diff too big!\n");
+    } else {
+        printf("right!\n");
+    }
+
+    free(a_host);
+    free(b_host);
+    free(c_host_cpu);
+    free(c_host_gpu);
+    CHECK_CUDA(cudaFree(a_device));
+    CHECK_CUDA(cudaFree(b_device));
+    CHECK_CUDA(cudaFree(c_device));
+
+    return 0;
+}
