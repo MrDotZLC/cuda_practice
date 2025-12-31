@@ -325,6 +325,72 @@ __global__ void sgemm7(float *a, float *b, float *c) {
     }
 }
 
+// 使用A转置提高访问比：寄存器读A，再将A的转置存入共享内存，计算时使用float4一次性存入寄存器计算
+__global__ void sgemm8(float *a, float *b, float *c) {
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+    float *a_begin = a + blockIdx.y * M_NUM_PER_BLOCK1 * K; // 一行
+    float *b_begin = b + blockIdx.x * N_NUM_PER_BLOCK1;     // 一列
+
+    __shared__ float a_shared[M_NUM_PER_BLOCK1][K_NUM_PER_BLOCK1];
+    __shared__ float b_shared[K_NUM_PER_BLOCK1][N_NUM_PER_BLOCK1];
+
+    float a_reg[M_NUM_PER_THREAD] = {0.f};
+    float b_reg[N_NUM_PER_THREAD] = {0.f};
+    float a_trans[K_NUM_PER_THREAD] = {0.f};
+    
+    float temp[M_NUM_PER_THREAD][N_NUM_PER_THREAD] = {0.f};
+
+    for (int s = 0; s < K; s += K_NUM_PER_BLOCK1) {
+        // 每个线程从a取 M_NUM_PER_THREAD*K_NUM_PER_THREAD 个，转置后存到寄存器
+        // 每次循环取K_NUM_PER_THREAD个，列向是连续的
+        for (int i = 0; i < M_NUM_PER_THREAD; i++) {
+            // FETCH_FLOAT4(a_shared[ty * M_NUM_PER_THREAD + i][tx * K_NUM_PER_THREAD]) = 
+            //     FETCH_FLOAT4(a_begin[(ty * M_NUM_PER_THREAD + i) * K + tx * K_NUM_PER_THREAD + s]);
+            FETCH_FLOAT4(a_trans[0]) = 
+                FETCH_FLOAT4(a_begin[(ty * M_NUM_PER_THREAD + i) * K + tx * K_NUM_PER_THREAD + s]);
+            a_shared[tx * K_NUM_PER_THREAD + 0][ty * M_NUM_PER_THREAD + i] = a_trans[0];
+            a_shared[tx * K_NUM_PER_THREAD + 1][ty * M_NUM_PER_THREAD + i] = a_trans[1];
+            a_shared[tx * K_NUM_PER_THREAD + 2][ty * M_NUM_PER_THREAD + i] = a_trans[2];
+            a_shared[tx * K_NUM_PER_THREAD + 3][ty * M_NUM_PER_THREAD + i] = a_trans[3];
+        }
+        // 每个线程从a取 K_NUM_PER_THREAD*N_NUM_PER_THREAD 个，存到共享内存
+        for (int i = 0; i < K_NUM_PER_THREAD; i++) {
+            FETCH_FLOAT4(b_shared[ty * K_NUM_PER_THREAD + i][tx * N_NUM_PER_THREAD]) = 
+                FETCH_FLOAT4(b_begin[(ty * K_NUM_PER_THREAD + i + s) * N + tx * N_NUM_PER_THREAD]);
+        }
+        __syncthreads();
+        for (int k = 0; k < K_NUM_PER_BLOCK1; k++) {
+            // 使用外积计算
+            // a是按列取的，只能按列存到寄存器
+            // a_reg[0] = a_shared[ty * M_NUM_PER_THREAD][k];
+            // a_reg[1] = a_shared[ty * M_NUM_PER_THREAD + 1][k];
+            // a_reg[2] = a_shared[ty * M_NUM_PER_THREAD + 2][k];
+            // a_reg[3] = a_shared[ty * M_NUM_PER_THREAD + 3][k];
+            FETCH_FLOAT4(a_reg[0]) = FETCH_FLOAT4(a_shared[k][ty * M_NUM_PER_THREAD]);
+            // b是按行取的，可以用float4一次性存到寄存器
+            FETCH_FLOAT4(b_reg[0]) = FETCH_FLOAT4(b_shared[k][tx * N_NUM_PER_THREAD]);
+            
+            for (int i = 0; i < M_NUM_PER_THREAD; i++) {
+                for (int j = 0; j < N_NUM_PER_THREAD; j++) {
+                    temp[i][j] += a_reg[i] * b_reg[j];
+                }
+            }
+        }
+        __syncthreads();
+    }
+
+    float *c_begin = c + blockIdx.y * M_NUM_PER_BLOCK1 * N + blockIdx.x * N_NUM_PER_BLOCK1;
+
+    for (int i = 0; i < M_NUM_PER_THREAD; i++) {
+        // 连续的，可以一次性存储
+        FETCH_FLOAT4(c_begin[(ty * M_NUM_PER_THREAD + i) * N + tx * N_NUM_PER_THREAD]) = FETCH_FLOAT4(temp[i][0]);
+        // for (int j = 0; j < N_NUM_PER_THREAD; j++) {
+        //     c_begin[(ty * M_NUM_PER_THREAD + i) * N + tx * N_NUM_PER_THREAD + j] = temp[i][j];
+        // }
+    }
+}
+
 void sgemm(float *a, float *b, float *c, const int method) {
     dim3 block0(TILE, TILE);
     dim3 block1(8, 32); // 32行，每行存放8个float4，共256个
@@ -359,6 +425,9 @@ void sgemm(float *a, float *b, float *c, const int method) {
         break;
     case 7:
         sgemm7<<<grid3, block2>>>(a, b, c);
+        break;
+    case 8:
+        sgemm8<<<grid3, block2>>>(a, b, c);
         break;
     default:
         printf("Error: wrong method\n");
@@ -430,6 +499,8 @@ int main() {
     timing(a_device, b_device, c_device, 6);
     printf("\nsGEmm v7 GPU Optimize block based v6        "); // Optimized blockDim=(16,16) and NUM_PER_BLOCK=(64,64) based v6
     timing(a_device, b_device, c_device, 7);
+    printf("\nsGEmm v8 GPU Smem Transpose                 "); // Register+Transpose A to impove access
+    timing(a_device, b_device, c_device, 8);
     
     CHECK_CUDA(cudaMemcpy(c_host_gpu, c_device, c_mem, cudaMemcpyDeviceToHost));
 
