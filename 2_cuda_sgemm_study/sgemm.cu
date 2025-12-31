@@ -7,9 +7,15 @@ const int N = 2048 / 4;
 const int K = 2048 / 4;
 const int TILE = 16;
 const int STRIDE = 2; 
+const int M_NUM_PER_BLOCK = 32;
+const int N_NUM_PER_BLOCK = 32;
+const int K_NUM_PER_BLOCK = 32;
+const int NUM_PER_THREAD = 4;
 
 #define A(i, j) a[(i) * n + (j)]
 #define B(i, j) b[(i) * n + (j)]
+
+#define FETCH_FLOAT4(pointer) (reinterpret_cast<float4 *>(&(pointer))[0])
 
 void random_matrix(int m, int n, float *a) {
     for (int i = 0; i < m; i++) {
@@ -163,11 +169,50 @@ __global__ void sgemm4(float *a, float *b, float *c) {
     }
 }
 
+// 降低数据精度：共享内存使用float4，则每个线程处理NUM_PER_THREAD
+__global__ void sgemm5(float *a, float *b, float *c) {
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+    float *a_begin = a + blockIdx.y * M_NUM_PER_BLOCK * K;
+    float *b_begin = b + blockIdx.x * N_NUM_PER_BLOCK;
+
+    __shared__ float a_shared[M_NUM_PER_BLOCK][K_NUM_PER_BLOCK];
+    __shared__ float b_shared[K_NUM_PER_BLOCK][N_NUM_PER_BLOCK];
+    float temp[NUM_PER_THREAD] = {0.f};
+
+    for (int s = 0; s < K; s += K_NUM_PER_BLOCK) {
+        FETCH_FLOAT4(a_shared[ty][tx * NUM_PER_THREAD]) = FETCH_FLOAT4(a_begin[ty * K + tx * NUM_PER_THREAD + s]);
+        // a_shared[ty][tx * NUM_PER_THREAD] = a_begin[ty * K + tx * NUM_PER_THREAD + s];
+        // a_shared[ty][tx * NUM_PER_THREAD + 1] = a_begin[ty * K + tx * NUM_PER_THREAD + s + 1];
+        // a_shared[ty][tx * NUM_PER_THREAD + 2] = a_begin[ty * K + tx * NUM_PER_THREAD + s + 2];
+        // a_shared[ty][tx * NUM_PER_THREAD + 3] = a_begin[ty * K + tx * NUM_PER_THREAD + s + 3];
+        FETCH_FLOAT4(b_shared[ty][tx * NUM_PER_THREAD]) = FETCH_FLOAT4(b_begin[(ty + s) * N + tx * NUM_PER_THREAD]);
+        // b_shared[ty][tx * NUM_PER_THREAD] = b_begin[(ty + s) * N + tx * NUM_PER_THREAD];
+        // b_shared[ty][tx * NUM_PER_THREAD + 1] = b_begin[(ty + s) * N + tx * NUM_PER_THREAD + 1];
+        // b_shared[ty][tx * NUM_PER_THREAD + 2] = b_begin[(ty + s) * N + tx * NUM_PER_THREAD + 2];
+        // b_shared[ty][tx * NUM_PER_THREAD + 3] = b_begin[(ty + s) * N + tx * NUM_PER_THREAD + 3];
+        __syncthreads();
+        for (int i = 0; i < NUM_PER_THREAD; i++) {
+            for (int k = 0; k < K_NUM_PER_BLOCK; k++) {
+                temp[i] += a_shared[ty][k] * b_shared[k][tx * NUM_PER_THREAD + i];
+            }
+        }
+        __syncthreads();
+    }
+
+    float *c_begin = c + blockIdx.y * M_NUM_PER_BLOCK * N + blockIdx.x * N_NUM_PER_BLOCK;
+    for (int i = 0; i < NUM_PER_THREAD; i++) {
+        c_begin[ty * N + tx * NUM_PER_THREAD + i] = temp[i]; 
+    }
+}
+
 void sgemm(float *a, float *b, float *c, const int method) {
     dim3 block0(TILE, TILE);
+    dim3 block1(8, 32); // 32行，每行存放8个float4，共256个
     // 设置列0主序，threadIdx.x为列下标且连续，因历史原因cuda中矩阵常为列主序
     dim3 grid0((N + TILE - 1) / TILE, (M + TILE - 1) / TILE);
     dim3 grid1((N + TILE - 1) / TILE / STRIDE, (M + TILE - 1) / TILE / STRIDE);
+    dim3 grid2((N + N_NUM_PER_BLOCK - 1) / N_NUM_PER_BLOCK, (M + M_NUM_PER_BLOCK - 1) / M_NUM_PER_BLOCK);
 
     switch (method) {
     case 0:
@@ -184,6 +229,9 @@ void sgemm(float *a, float *b, float *c, const int method) {
         break;
     case 4:
         sgemm4<<<grid1, block0>>>(a, b, c);
+        break;
+    case 5:
+        sgemm5<<<grid2, block1>>>(a, b, c);
         break;
     default:
         printf("Error: wrong method\n");
@@ -249,6 +297,8 @@ int main() {
     timing(a_device, b_device, c_device, 3);    // MNK(1/bn + 1/bm), MN, 47.0ms
     printf("\nsGEmm v4 GPU Increase Work of Per Thread    "); // more work per thread
     timing(a_device, b_device, c_device, 4);    // MNK(1/bn + 1/bm), MN, 47.0ms
+    printf("\nsGEmm v5 GPU Using Float4                   "); // more work per thread
+    timing(a_device, b_device, c_device, 5);
     
     CHECK_CUDA(cudaMemcpy(c_host_gpu, c_device, c_mem, cudaMemcpyDeviceToHost));
 
