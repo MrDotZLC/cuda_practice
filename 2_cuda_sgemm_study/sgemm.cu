@@ -11,6 +11,7 @@ const int M_NUM_PER_BLOCK = 32;
 const int N_NUM_PER_BLOCK = 32;
 const int K_NUM_PER_BLOCK = 32;
 const int NUM_PER_THREAD = 4;
+const int NUM_REG = NUM_PER_THREAD / 2;
 
 #define A(i, j) a[(i) * n + (j)]
 #define B(i, j) b[(i) * n + (j)]
@@ -206,6 +207,60 @@ __global__ void sgemm5(float *a, float *b, float *c) {
     }
 }
 
+// 寄存器+外积：寄存器减少共享内存读取，使用外积计算
+__global__ void sgemm6(float *a, float *b, float *c) {
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+    const int tid = ty * blockDim.x + tx;
+    const int ctx = tid % (K_NUM_PER_BLOCK / NUM_REG);
+    const int cty = tid / (K_NUM_PER_BLOCK / NUM_REG);
+    float *a_begin = a + blockIdx.y * M_NUM_PER_BLOCK * K;
+    float *b_begin = b + blockIdx.x * N_NUM_PER_BLOCK;
+
+    __shared__ float a_shared[M_NUM_PER_BLOCK][K_NUM_PER_BLOCK];
+    __shared__ float b_shared[K_NUM_PER_BLOCK][N_NUM_PER_BLOCK];
+
+    float a_reg[NUM_REG] = {0.f};
+    float b_reg[NUM_REG] = {0.f};
+    
+    float temp[NUM_REG][NUM_REG] = {0.f};
+
+    for (int s = 0; s < K; s += K_NUM_PER_BLOCK) {
+        FETCH_FLOAT4(a_shared[ty][tx * NUM_PER_THREAD]) = FETCH_FLOAT4(a_begin[ty * K + tx * NUM_PER_THREAD + s]);
+        // a_shared[ty][tx * NUM_PER_THREAD] = a_begin[ty * K + tx * NUM_PER_THREAD + s];
+        // a_shared[ty][tx * NUM_PER_THREAD + 1] = a_begin[ty * K + tx * NUM_PER_THREAD + s + 1];
+        // a_shared[ty][tx * NUM_PER_THREAD + 2] = a_begin[ty * K + tx * NUM_PER_THREAD + s + 2];
+        // a_shared[ty][tx * NUM_PER_THREAD + 3] = a_begin[ty * K + tx * NUM_PER_THREAD + s + 3];
+        FETCH_FLOAT4(b_shared[ty][tx * NUM_PER_THREAD]) = FETCH_FLOAT4(b_begin[(ty + s) * N + tx * NUM_PER_THREAD]);
+        // b_shared[ty][tx * NUM_PER_THREAD] = b_begin[(ty + s) * N + tx * NUM_PER_THREAD];
+        // b_shared[ty][tx * NUM_PER_THREAD + 1] = b_begin[(ty + s) * N + tx * NUM_PER_THREAD + 1];
+        // b_shared[ty][tx * NUM_PER_THREAD + 2] = b_begin[(ty + s) * N + tx * NUM_PER_THREAD + 2];
+        // b_shared[ty][tx * NUM_PER_THREAD + 3] = b_begin[(ty + s) * N + tx * NUM_PER_THREAD + 3];
+        __syncthreads();
+        for (int k = 0; k < K_NUM_PER_BLOCK; k++) {
+            // 使用外积计算
+            a_reg[0] = a_shared[cty * NUM_REG][k];
+            a_reg[1] = a_shared[cty * NUM_REG + 1][k];
+            b_reg[0] = b_shared[k][ctx * NUM_REG];
+            b_reg[1] = b_shared[k][ctx * NUM_REG + 1];
+            for (int i = 0; i < NUM_REG; i++) {
+                for (int j = 0; j < NUM_REG; j++) {
+                    temp[i][j] += a_reg[i] * b_reg[j];
+                }
+            }
+        }
+        __syncthreads();
+    }
+
+    float *c_begin = c + blockIdx.y * M_NUM_PER_BLOCK * N + blockIdx.x * N_NUM_PER_BLOCK;
+
+    for (int i = 0; i < NUM_REG; i++) {
+        for (int j = 0; j < NUM_REG; j++) {
+            c_begin[(cty * NUM_REG + i) * N + ctx * NUM_REG + j] = temp[i][j];
+        }
+    }
+}
+
 void sgemm(float *a, float *b, float *c, const int method) {
     dim3 block0(TILE, TILE);
     dim3 block1(8, 32); // 32行，每行存放8个float4，共256个
@@ -232,6 +287,9 @@ void sgemm(float *a, float *b, float *c, const int method) {
         break;
     case 5:
         sgemm5<<<grid2, block1>>>(a, b, c);
+        break;
+    case 6:
+        sgemm6<<<grid2, block1>>>(a, b, c);
         break;
     default:
         printf("Error: wrong method\n");
@@ -288,9 +346,9 @@ int main() {
     CHECK_CUDA(cudaMemcpy(b_device, b_host, b_mem, cudaMemcpyHostToDevice));
 
     printf("\nsGEmm v0 CPU:                               "); // CPU
-    timing(a_host, b_host, c_host_cpu, 0);      // 2MNK,             MN, 455.0ms
+    timing(a_host, b_host, c_host_cpu, 0);      //    ,              MN, 455.0ms
     printf("\nsGEmm v1 GPU Global Memory:                 "); // GPU
-    timing(a_device, b_device, c_device, 1);    // MNK(1/bn + 1/bm), MN, 47.0ms
+    timing(a_device, b_device, c_device, 1);    // 2MNK            , MN, 47.0ms
     // printf("\nsGEmm v2 GPU Shared Memory with TILE * K    "); // SM with TILE*K
     // timing(a_device, b_device, c_device, 2);    // error: Shared Memory limit exceeded
     printf("\nsGEmm v3 GPU Shared Memory with TILE * TILE "); // SM with TILE*TILE
@@ -299,6 +357,8 @@ int main() {
     timing(a_device, b_device, c_device, 4);    // MNK(1/bn + 1/bm), MN, 47.0ms
     printf("\nsGEmm v5 GPU Using Float4                   "); // more work per thread
     timing(a_device, b_device, c_device, 5);
+    printf("\nsGEmm V6 GPU Register and Outer Product     "); // Register cache data and using outer product
+    timing(a_device, b_device, c_device, 6);
     
     CHECK_CUDA(cudaMemcpy(c_host_gpu, c_device, c_mem, cudaMemcpyDeviceToHost));
 
