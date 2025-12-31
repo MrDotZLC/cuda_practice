@@ -317,9 +317,11 @@ __global__ void sgemm7(float *a, float *b, float *c) {
     float *c_begin = c + blockIdx.y * M_NUM_PER_BLOCK1 * N + blockIdx.x * N_NUM_PER_BLOCK1;
 
     for (int i = 0; i < M_NUM_PER_THREAD; i++) {
-        for (int j = 0; j < N_NUM_PER_THREAD; j++) {
-            c_begin[(ty * M_NUM_PER_THREAD + i) * N + tx * N_NUM_PER_THREAD + j] = temp[i][j];
-        }
+        FETCH_FLOAT4(c_begin[(ty * M_NUM_PER_THREAD + i) * N + tx * N_NUM_PER_THREAD]) = FETCH_FLOAT4(temp[i][0]);
+        // 连续的，可以一次性存储
+        // for (int j = 0; j < N_NUM_PER_THREAD; j++) {
+        //     c_begin[(ty * M_NUM_PER_THREAD + i) * N + tx * N_NUM_PER_THREAD + j] = temp[i][j];
+        // }
     }
 }
 
