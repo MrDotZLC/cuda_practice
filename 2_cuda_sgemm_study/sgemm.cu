@@ -13,10 +13,16 @@ const int K_NUM_PER_BLOCK = 32;
 const int M_NUM_PER_BLOCK1 = 64;
 const int N_NUM_PER_BLOCK1 = 64;
 const int K_NUM_PER_BLOCK1 = 64;
+const int M_NUM_PER_BLOCK2 = 128;
+const int N_NUM_PER_BLOCK2 = 128;
+const int K_NUM_PER_BLOCK2 = 8;
 const int NUM_PER_THREAD = 4;
 const int M_NUM_PER_THREAD = 4;
 const int N_NUM_PER_THREAD = 4;
 const int K_NUM_PER_THREAD = 4;
+const int M_NUM_PER_THREAD1 = 8;
+const int N_NUM_PER_THREAD1 = 8;
+const int K_NUM_PER_THREAD1 = 8;
 const int NUM_REG = NUM_PER_THREAD / 2;
 
 #define A(i, j) a[(i) * n + (j)]
@@ -332,7 +338,7 @@ __global__ void sgemm8(float *a, float *b, float *c) {
     float *a_begin = a + blockIdx.y * M_NUM_PER_BLOCK1 * K; // 一行
     float *b_begin = b + blockIdx.x * N_NUM_PER_BLOCK1;     // 一列
 
-    __shared__ float a_shared[M_NUM_PER_BLOCK1][K_NUM_PER_BLOCK1];
+    __shared__ float a_shared[K_NUM_PER_BLOCK1][M_NUM_PER_BLOCK1];
     __shared__ float b_shared[K_NUM_PER_BLOCK1][N_NUM_PER_BLOCK1];
 
     float a_reg[M_NUM_PER_THREAD] = {0.f};
@@ -391,15 +397,121 @@ __global__ void sgemm8(float *a, float *b, float *c) {
     }
 }
 
+// SMem做双缓冲：存入SMem1 =同步=> 
+__global__ void sgemm9(float *a, float *b, float *c) {
+    const int tx = threadIdx.x;
+    const int ty = threadIdx.y;
+    const int bx = blockIdx.x;
+    const int by = blockIdx.y;
+    const int tid = ty * blockDim.x + tx;
+
+    __shared__ float a_shared[2][K_NUM_PER_BLOCK2][M_NUM_PER_BLOCK2];
+    __shared__ float b_shared[2][K_NUM_PER_BLOCK2][N_NUM_PER_BLOCK2];
+
+    float accum[M_NUM_PER_THREAD1][N_NUM_PER_THREAD1] = {0.f};
+    float a_reg[M_NUM_PER_THREAD1] = {0.f};
+    float b_reg[N_NUM_PER_THREAD1] = {0.f};
+    float a_trans[4] = {0.f};
+
+    float *a_begin = a + by * M_NUM_PER_BLOCK2 * K; // GMem中一整行（包含K/K_NUM_PER_BLOCK2个block）
+    float *b_begin = b + bx * N_NUM_PER_BLOCK2;     // GMem中一整列（包含K/K_NUM_PER_BLOCK2个block）
+
+    // 每个线程每次搬运4个float数据
+    const int a_tile_thread_per_row = K_NUM_PER_BLOCK2 / 4; // 该block的x方向有2条线程负责
+    const int b_tile_thread_per_row = N_NUM_PER_BLOCK2 / 4; // 该block的x方向有32条线程负责
+
+    // 将整个GMem划分成多个tile，每个block处理一个tile
+    const int a_tile_tid_x = tid % a_tile_thread_per_row; // 处理A GMem数据的x索引
+    const int a_tile_tid_y = tid / a_tile_thread_per_row; // 处理A GMem数据的y索引
+    const int b_tile_tid_x = tid % b_tile_thread_per_row; // 处理B GMem数据的x索引
+    const int b_tile_tid_y = tid / b_tile_thread_per_row; // 处理B GMem数据的y索引
+
+    // 预加载第一块：将A GMem对应block、tile_tid中大小为4*1的float4数据块一次性存入Register
+    FETCH_FLOAT4(a_trans[0]) = FETCH_FLOAT4(a_begin[a_tile_tid_y * K + a_tile_tid_x * 4]);
+    // 将Register中的数据转置后存入SMem
+    a_shared[0][a_tile_tid_x * 4 + 0][a_tile_tid_y] = a_trans[0];
+    a_shared[0][a_tile_tid_x * 4 + 1][a_tile_tid_y] = a_trans[1];
+    a_shared[0][a_tile_tid_x * 4 + 2][a_tile_tid_y] = a_trans[2];
+    a_shared[0][a_tile_tid_x * 4 + 3][a_tile_tid_y] = a_trans[3];
+    FETCH_FLOAT4(b_shared[0][b_tile_tid_y][b_tile_tid_x * 4]) = 
+        FETCH_FLOAT4(b_begin[b_tile_tid_y * N + b_tile_tid_x * 4]);
+    __syncthreads();
+    int write_stage_idx = 1;
+    for (int s = K_NUM_PER_BLOCK2; s < K; s += K_NUM_PER_BLOCK2) {
+        // 预加载下一块
+        FETCH_FLOAT4(a_trans[0]) = 
+            FETCH_FLOAT4(a_begin[a_tile_tid_y * K + a_tile_tid_x * 4 + s]);
+        // 将Register中的数据转置后存入SMem
+        a_shared[write_stage_idx][a_tile_tid_x * 4 + 0][a_tile_tid_y] = a_trans[0];
+        a_shared[write_stage_idx][a_tile_tid_x * 4 + 1][a_tile_tid_y] = a_trans[1];
+        a_shared[write_stage_idx][a_tile_tid_x * 4 + 2][a_tile_tid_y] = a_trans[2];
+        a_shared[write_stage_idx][a_tile_tid_x * 4 + 3][a_tile_tid_y] = a_trans[3];
+        FETCH_FLOAT4(b_shared[write_stage_idx][b_tile_tid_y][b_tile_tid_x * 4]) = 
+            FETCH_FLOAT4(b_begin[(b_tile_tid_y + s) * N + b_tile_tid_x * 4]);
+
+        write_stage_idx = write_stage_idx ^ 1;
+        for (int k = 0; k < K_NUM_PER_BLOCK2; k++) { // 每条线程计算K
+            // 使用外积计算
+            // a是按列取的，只能按列存到寄存器
+            FETCH_FLOAT4(a_reg[0]) = FETCH_FLOAT4(a_shared[write_stage_idx][k][ty * M_NUM_PER_THREAD1]);
+            FETCH_FLOAT4(a_reg[4]) = FETCH_FLOAT4(a_shared[write_stage_idx][k][ty * M_NUM_PER_THREAD1 + 4]);
+            
+            // b是按行取的，可以用float4一次性存到寄存器
+            FETCH_FLOAT4(b_reg[0]) = FETCH_FLOAT4(b_shared[write_stage_idx][k][tx * N_NUM_PER_THREAD1]);
+            FETCH_FLOAT4(b_reg[4]) = FETCH_FLOAT4(b_shared[write_stage_idx][k][tx * N_NUM_PER_THREAD1 + 4]);
+
+            for (int i = 0; i < M_NUM_PER_THREAD1; i++) {
+                for (int j = 0; j < N_NUM_PER_THREAD1; j++) {
+                    accum[i][j] += a_reg[i] * b_reg[j];
+                }
+            }
+        }
+        __syncthreads();
+    }
+    // 流程中最后一块的数据计算
+    write_stage_idx = write_stage_idx ^ 1;
+    for (int k = 0; k < K_NUM_PER_BLOCK2; k++) { // 每条线程计算K
+        // 使用外积计算
+        // a是按列取的，只能按列存到寄存器
+        FETCH_FLOAT4(a_reg[0]) = FETCH_FLOAT4(a_shared[write_stage_idx][k][ty * M_NUM_PER_THREAD1]);
+        FETCH_FLOAT4(a_reg[4]) = FETCH_FLOAT4(a_shared[write_stage_idx][k][ty * M_NUM_PER_THREAD1 + 4]);
+        
+        // b是按行取的，可以用float4一次性存到寄存器
+        FETCH_FLOAT4(b_reg[0]) = FETCH_FLOAT4(b_shared[write_stage_idx][k][tx * N_NUM_PER_THREAD1]);
+        FETCH_FLOAT4(b_reg[4]) = FETCH_FLOAT4(b_shared[write_stage_idx][k][tx * N_NUM_PER_THREAD1 + 4]);
+
+        for (int i = 0; i < M_NUM_PER_THREAD1; i++) {
+            for (int j = 0; j < N_NUM_PER_THREAD1; j++) {
+                accum[i][j] += a_reg[i] * b_reg[j];
+            }
+        }
+    }
+
+    float *c_begin = c + by * M_NUM_PER_BLOCK2 * N + bx * N_NUM_PER_BLOCK2;
+
+    for (int i = 0; i < M_NUM_PER_THREAD1; i++) {
+        // 连续的，可以一次性存储
+        FETCH_FLOAT4(c_begin[(ty * M_NUM_PER_THREAD1 + i) * N + tx * N_NUM_PER_THREAD1]) = 
+            FETCH_FLOAT4(accum[i][0]);
+        FETCH_FLOAT4(c_begin[(ty * M_NUM_PER_THREAD1 + i) * N + tx * N_NUM_PER_THREAD1 + 4]) = 
+            FETCH_FLOAT4(accum[i][4]);
+        // for (int j = 0; j < N_NUM_PER_THREAD; j++) {
+        //     c_begin[(ty * M_NUM_PER_THREAD + i) * N + tx * N_NUM_PER_THREAD + j] = temp[i][j];
+        // }
+    }
+}
+
 void sgemm(float *a, float *b, float *c, const int method) {
     dim3 block0(TILE, TILE);
     dim3 block1(8, 32); // 32行，每行存放8个float4，共256个
     dim3 block2(16, 16);
+    dim3 block3(N_NUM_PER_BLOCK2 / N_NUM_PER_THREAD1, M_NUM_PER_BLOCK2 / M_NUM_PER_THREAD1);
     // 设置列0主序，threadIdx.x为列下标且连续，因历史原因cuda中矩阵常为列主序
     dim3 grid0((N + TILE - 1) / TILE, (M + TILE - 1) / TILE);
     dim3 grid1((N + TILE - 1) / TILE / STRIDE, (M + TILE - 1) / TILE / STRIDE);
     dim3 grid2((N + N_NUM_PER_BLOCK - 1) / N_NUM_PER_BLOCK, (M + M_NUM_PER_BLOCK - 1) / M_NUM_PER_BLOCK);
     dim3 grid3((N + N_NUM_PER_BLOCK1 - 1) / N_NUM_PER_BLOCK1, (M + M_NUM_PER_BLOCK1 - 1) / M_NUM_PER_BLOCK1);
+    dim3 grid4((N + N_NUM_PER_BLOCK2 - 1) / N_NUM_PER_BLOCK2, (M + M_NUM_PER_BLOCK2 - 1) / M_NUM_PER_BLOCK2);
 
     switch (method) {
     case 0:
@@ -428,6 +540,9 @@ void sgemm(float *a, float *b, float *c, const int method) {
         break;
     case 8:
         sgemm8<<<grid3, block2>>>(a, b, c);
+        break;
+    case 9:
+        sgemm9<<<grid4, block3>>>(a, b, c);
         break;
     default:
         printf("Error: wrong method\n");
@@ -501,6 +616,8 @@ int main() {
     timing(a_device, b_device, c_device, 7);
     printf("\nsGEmm v8 GPU Smem Transpose                 "); // Register+Transpose A to impove access
     timing(a_device, b_device, c_device, 8);
+    printf("\nsGEmm v9 GPU Smem Double Buffer             "); // Using double SMem to impove access
+    timing(a_device, b_device, c_device, 9);
     
     CHECK_CUDA(cudaMemcpy(c_host_gpu, c_device, c_mem, cudaMemcpyDeviceToHost));
 
