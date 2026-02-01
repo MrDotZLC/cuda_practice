@@ -1,5 +1,5 @@
 # cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
-set(CMAKE_PREFIX_PATH "/mnt/d/CodeSpace/libtorch/share/cmake/Torch;${CMAKE_PREFIX_PATH}")
+set(CMAKE_PREFIX_PATH "/home/mr_zlc/libtorch/share/cmake/Torch;${CMAKE_PREFIX_PATH}")
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 

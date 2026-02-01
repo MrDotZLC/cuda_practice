@@ -2,7 +2,7 @@
 #include <iostream>
 #include <cmath>
 
-std::vector<float> native_softmax(const std::vector<float> src) {
+std::vector<float> naive_softmax(const std::vector<float> src) {
     std::vector<float> dst(src.size());
     float sum = 0.f;
     for (int i = 0; i < src.size(); i++) {
@@ -70,7 +70,7 @@ float online_softmax_dot_product_perfect(const std::vector<float> src, const std
 
 int main() {
     std::vector<float> src = {1.2f, 2.5f, 4.61f, 10.85f, 48.12f};
-    std::vector<float> dst = native_softmax(src);
+    std::vector<float> dst = naive_softmax(src);
     for (float f : dst) {
         std::cout << f << " ";
     }

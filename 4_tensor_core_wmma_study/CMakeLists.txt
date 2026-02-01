@@ -1,4 +1,7 @@
-# find_package(BLAS REQUIRED)
+set(CMAKE_PREFIX_PATH "/home/mr_zlc/libtorch/share/cmake/Torch;${CMAKE_PREFIX_PATH}")
+find_package(Torch REQUIRED)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+
 # 包含头文件目录
 include_directories(${PROJECT_SOURCE_DIR}/include)
 # 查找当前目录下的所有 .cu 文件
