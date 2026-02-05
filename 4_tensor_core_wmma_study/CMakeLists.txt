@@ -1,6 +1,6 @@
-set(CMAKE_PREFIX_PATH "/home/mr_zlc/libtorch/share/cmake/Torch;${CMAKE_PREFIX_PATH}")
-find_package(Torch REQUIRED)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+# set(CMAKE_PREFIX_PATH "/home/mr_zlc/libtorch/share/cmake/Torch;${CMAKE_PREFIX_PATH}")
+# find_package(Torch REQUIRED)
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 
 # 包含头文件目录
 include_directories(${PROJECT_SOURCE_DIR}/include)
@@ -14,7 +14,8 @@ foreach(CU_FILE ${CUDA_SOURCES})
     target_link_libraries(${EXE_NAME} PRIVATE CUDA::cudart ${CUDA_cublas_LIBRARY})
     
     # 如果是 Debug 模式，添加调试选项
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        target_compile_options(${EXE_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-G>)
-    endif()
+    # 需要调试再开，不然影响运行速度和内存
+    # if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    #     target_compile_options(${EXE_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-G>)
+    # endif()
 endforeach()

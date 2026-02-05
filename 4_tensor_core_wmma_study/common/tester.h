@@ -11,6 +11,45 @@
 #include "cuda_timer.h"
 #include "matrix.h"
 
+#define TILE_DIM 32
+#define BLOCK_ROWS 8   // blockDim.y
+__global__ void transpose2d_32x8(
+    const half* __restrict__ A,
+    half* __restrict__ B,
+    int width,
+    int height
+) {
+    __shared__ half tile[TILE_DIM][TILE_DIM + 1];
+
+    int x = blockIdx.x * TILE_DIM + threadIdx.x;
+    int y = blockIdx.y * TILE_DIM + threadIdx.y;
+
+    // load: 一个线程加载多行
+    #pragma unroll
+    for (int i = 0; i < TILE_DIM; i += BLOCK_ROWS) {
+        int yy = y + i;
+        if (x < width && yy < height) {
+            tile[threadIdx.y + i][threadIdx.x] =
+                A[yy * width + x];
+        }
+    }
+
+    __syncthreads();
+
+    int tx = blockIdx.y * TILE_DIM + threadIdx.x;
+    int ty = blockIdx.x * TILE_DIM + threadIdx.y;
+
+    // store
+    #pragma unroll
+    for (int i = 0; i < TILE_DIM; i += BLOCK_ROWS) {
+        int yy = ty + i;
+        if (tx < height && yy < width) {
+            B[yy * height + tx] =
+                tile[threadIdx.x][threadIdx.y + i];
+        }
+    }
+}
+
 class Tester {
 public:
     explicit Tester(size_t M = 512, size_t N = 2048, size_t K = 1024, size_t warmup_iterations = 1,
@@ -80,9 +119,27 @@ private:
         half alpha = 1.0;
         half beta = 0.0;
 
-        HGEMM_CHECK_CUBLAS_ERROR(cublasGemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_N, N, M, K, &alpha, B, CUDA_R_16F, K, A,
-                                              CUDA_R_16F, K, &beta, C, CUDA_R_16F, N, CUBLAS_COMPUTE_16F,
-                                              CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+        // HGEMM_CHECK_CUBLAS_ERROR(cublasGemmEx(handle, CUBLAS_OP_T, CUBLAS_OP_N, N, M, K, &alpha, B, CUDA_R_16F, K, A,
+        //                                       CUDA_R_16F, K, &beta, C, CUDA_R_16F, N, CUBLAS_COMPUTE_16F,
+        //                                       CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+
+        HGEMM_CHECK_CUBLAS_ERROR(cublasGemmEx(
+            handle, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K, &alpha, B,
+            CUDA_R_16F, N,  // B: N×K (行主序 → 视为列主序转置)
+            A, CUDA_R_16F, K, &beta, C, CUDA_R_16F, N,
+            CUBLAS_COMPUTE_16F, CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+
+        // auto m_C_t = std::make_shared<Matrix>(m_M, m_N, "Matrix C T");
+        // HGEMM_CHECK_CUBLAS_ERROR(cublasGemmEx(
+        //     handle, CUBLAS_OP_T, CUBLAS_OP_T, M, N, K, &alpha, A,
+        //     CUDA_R_16F, K,  // B: N×K (行主序 → 视为列主序转置)
+        //     B, CUDA_R_16F, N, &beta, m_C_t->getDevPtr(), CUDA_R_16F,
+        //     M, CUBLAS_COMPUTE_16F, CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+        // dim3 block(32, 8);
+        // dim3 grid((M + block.x - 1) / block.x,
+        //           (N + block.y - 1) / block.y);
+        // transpose2d_32x8<<<grid, block>>>(m_C_t->getDevPtr(), C, M, N);
+
         HGEMM_CHECK_CUBLAS_ERROR(cublasDestroy(handle));
     }
 

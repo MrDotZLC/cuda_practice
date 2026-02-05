@@ -1,0 +1,11 @@
+BasedOnStyle: Google                      # 基于 Google 风格作为默认配置
+IndentWidth: 4                            # 使用 4 个空格作为缩进
+ColumnLimit: 80                           # 每行最大长度为 70 列
+AllowShortFunctionsOnASingleLine: Inline  # 短函数（函数体很短）允许写在单行内
+BreakBeforeBraces: Attach                 # 大括号与语句同行 (K&R 风格)，例如 `if () {`
+DerivePointerAlignment: false             # 不自动推导指针对齐方式，使用手动指定
+PointerAlignment: Right                   # 指针符号 `*` 靠近变量名，例如 `int* p;`
+SpacesInParentheses: false                # 括号内不加空格，例如 `func(a, b)` 而不是 `func( a, b )`
+SpaceAfterCStyleCast: true                # C 风格强制类型转换后加空格，例如 `(int) x`
+SortIncludes: false                       # 不自动对 include 头文件排序
+AccessModifierOffset: -4                  # 类的访问修饰符（public/private/protected）顶格对齐

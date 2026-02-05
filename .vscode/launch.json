@@ -8,7 +8,7 @@
             "name": "CUDA C++: Launch",
             "type": "cuda-gdb",
             "request": "launch",
-            "program": "/home/mr-zlch/cuda_practice/build/2_cuda_sgemm_study/sgemm"
+            "program": "/home/mr_zlc/cuda_practice/build/4_tensor_core_wmma_study/hgemm_v2_wmma_m16n16k16_mma4x2_kernel"
         },
         {
             "name": "CUDA C++: Attach",
