@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20.0)
 set(CMAKE_CUDA_COMPILER "/usr/local/cuda-12.6/bin/nvcc")
 project(cuda_practice VERSION 0.1.0 LANGUAGES CUDA CXX C)
-set(CMAKE_CUDA_ARCHITECTURES 75) # 根据显卡填写（>=80支持cp.async）
+set(CMAKE_CUDA_ARCHITECTURES 75) # 根据显卡填写（>=80支持cp.async、PTX的.m16n8k16形状）
 find_package(CUDAToolkit)
 # add_subdirectory(0_cuda_programming_study)
 # add_subdirectory(1_cuda_reduce_study)
