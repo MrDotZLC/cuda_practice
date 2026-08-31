@@ -18,9 +18,9 @@ int main(int argc, char *argv[]) {
     const int N = 100000000;
     const int M = sizeof(double) * N;
     double *x, *y, *z;
-    CHECK_CUDA(cudaMallocManaged((void **)&x, M));
-    CHECK_CUDA(cudaMallocManaged((void **)&y, M));
-    CHECK_CUDA(cudaMallocManaged((void **)&z, M));
+    CUDA_CHECK(cudaMallocManaged((void **)&x, M));
+    CUDA_CHECK(cudaMallocManaged((void **)&y, M));
+    CUDA_CHECK(cudaMallocManaged((void **)&z, M));
 
     for (int n = 0; n < N; ++n)
     {
@@ -32,12 +32,12 @@ int main(int argc, char *argv[]) {
     const int grid_size = N / block_size;
     add<<<grid_size, block_size>>>(x, y, z);
 
-    CHECK_CUDA(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaDeviceSynchronize());
     check(z, N);
 
-    CHECK_CUDA(cudaFree(x));
-    CHECK_CUDA(cudaFree(y));
-    CHECK_CUDA(cudaFree(z));
+    CUDA_CHECK(cudaFree(x));
+    CUDA_CHECK(cudaFree(y));
+    CUDA_CHECK(cudaFree(z));
 
     // 使用静态统一内存
     AplusB<<<1, 1000>>>(10, 100);

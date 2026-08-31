@@ -23,27 +23,27 @@ int main(int argc, char *argv[])
         h_y[n] = 2.34;
     }
     float *d_x, *d_y, *d_z;
-    CHECK_CUDA(cudaMalloc(&d_x, M));
-    CHECK_CUDA(cudaMalloc(&d_y, M));
-    CHECK_CUDA(cudaMalloc(&d_z, M));
-    CHECK_CUDA(cudaMemcpy(d_x, h_x, M, cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(d_y, h_y, M, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMalloc(&d_x, M));
+    CUDA_CHECK(cudaMalloc(&d_y, M));
+    CUDA_CHECK(cudaMalloc(&d_z, M));
+    CUDA_CHECK(cudaMemcpy(d_x, h_x, M, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(d_y, h_y, M, cudaMemcpyHostToDevice));
 
     for (int n = 0; n < MAX_NUM_STREAMS; ++n) {
-        CHECK_CUDA(cudaStreamCreate(&streams[n]));
+        CUDA_CHECK(cudaStreamCreate(&streams[n]));
     }
     for (int num = 1; num <= MAX_NUM_STREAMS; ++num) {
         timing(d_x, d_y, d_z, num);
     }
     for (int n = 0; n < MAX_NUM_STREAMS; ++n) {
-        CHECK_CUDA(cudaStreamDestroy(streams[n]));
+        CUDA_CHECK(cudaStreamDestroy(streams[n]));
     }
 
     free(h_x);
     free(h_y);
-    CHECK_CUDA(cudaFree(d_x));
-    CHECK_CUDA(cudaFree(d_y));
-    CHECK_CUDA(cudaFree(d_z));
+    CUDA_CHECK(cudaFree(d_x));
+    CUDA_CHECK(cudaFree(d_y));
+    CUDA_CHECK(cudaFree(d_z));
     return 0;
 }
 
@@ -53,9 +53,9 @@ void timing(const float *d_x, const float *d_y, float *d_z, const int num_stream
 
     for (int repeat = 0; repeat <= NUM_REPEATS; ++repeat) {
         cudaEvent_t start, stop;
-        CHECK_CUDA(cudaEventCreate(&start));
-        CHECK_CUDA(cudaEventCreate(&stop));
-        CHECK_CUDA(cudaEventRecord(start));
+        CUDA_CHECK(cudaEventCreate(&start));
+        CUDA_CHECK(cudaEventCreate(&stop));
+        CUDA_CHECK(cudaEventRecord(start));
 
         for (int n = 0; n < num_stream; ++n) {
             int offset = n * N1;
@@ -64,18 +64,18 @@ void timing(const float *d_x, const float *d_y, float *d_z, const int num_stream
             );
         }
 
-        CHECK_CUDA(cudaEventRecord(stop));
-        CHECK_CUDA(cudaEventSynchronize(stop));
+        CUDA_CHECK(cudaEventRecord(stop));
+        CUDA_CHECK(cudaEventSynchronize(stop));
         float elapsed_time;
-        CHECK_CUDA(cudaEventElapsedTime(&elapsed_time, start, stop));
+        CUDA_CHECK(cudaEventElapsedTime(&elapsed_time, start, stop));
 
         if (repeat > 0) {
             t_sum += elapsed_time;
             t2_sum += elapsed_time * elapsed_time;
         }
 
-        CHECK_CUDA(cudaEventDestroy(start));
-        CHECK_CUDA(cudaEventDestroy(stop));
+        CUDA_CHECK(cudaEventDestroy(start));
+        CUDA_CHECK(cudaEventDestroy(stop));
     }
 
     const float t_avg = t_sum / NUM_REPEATS;

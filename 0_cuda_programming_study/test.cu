@@ -16,9 +16,9 @@ void timing(const float *h_x, const float *h_y, float *h_z,
 int main(int argc, char *argv[])
 {
     float *h_x, *h_y, *h_z;
-    CHECK_CUDA(cudaMallocHost(&h_x, M));
-    CHECK_CUDA(cudaMallocHost(&h_y, M));
-    CHECK_CUDA(cudaMallocHost(&h_z, M));
+    CUDA_CHECK(cudaMallocHost(&h_x, M));
+    CUDA_CHECK(cudaMallocHost(&h_y, M));
+    CUDA_CHECK(cudaMallocHost(&h_z, M));
     for (int n = 0; n < N; ++n)
     {
         h_x[n] = 1.23;
@@ -26,13 +26,13 @@ int main(int argc, char *argv[])
     }
 
     float *d_x, *d_y, *d_z;
-    CHECK_CUDA(cudaMalloc(&d_x, M));
-    CHECK_CUDA(cudaMalloc(&d_y, M));
-    CHECK_CUDA(cudaMalloc(&d_z, M));
+    CUDA_CHECK(cudaMalloc(&d_x, M));
+    CUDA_CHECK(cudaMalloc(&d_y, M));
+    CUDA_CHECK(cudaMalloc(&d_z, M));
 
     for (int i = 0; i < MAX_NUM_STREAMS; i++)
     {
-        CHECK_CUDA(cudaStreamCreate(&(streams[i])));
+        CUDA_CHECK(cudaStreamCreate(&(streams[i])));
     }
 
     for (int num = 1; num <= MAX_NUM_STREAMS; num *= 2)
@@ -42,15 +42,15 @@ int main(int argc, char *argv[])
 
     for (int i = 0 ; i < MAX_NUM_STREAMS; i++)
     {
-        CHECK_CUDA(cudaStreamDestroy(streams[i]));
+        CUDA_CHECK(cudaStreamDestroy(streams[i]));
     }
 
-    CHECK_CUDA(cudaFreeHost(h_x));
-    CHECK_CUDA(cudaFreeHost(h_y));
-    CHECK_CUDA(cudaFreeHost(h_z));
-    CHECK_CUDA(cudaFree(d_x));
-    CHECK_CUDA(cudaFree(d_y));
-    CHECK_CUDA(cudaFree(d_z));
+    CUDA_CHECK(cudaFreeHost(h_x));
+    CUDA_CHECK(cudaFreeHost(h_y));
+    CUDA_CHECK(cudaFreeHost(h_z));
+    CUDA_CHECK(cudaFree(d_x));
+    CUDA_CHECK(cudaFree(d_y));
+    CUDA_CHECK(cudaFree(d_z));
     
     return 0;
 }
@@ -80,29 +80,29 @@ void timing(const float *h_x, const float *h_y, float *h_z,
     for (int repeat = 0; repeat <= NUM_REPEATS; ++repeat)
     {
         cudaEvent_t start, stop;
-        CHECK_CUDA(cudaEventCreate(&start));
-        CHECK_CUDA(cudaEventCreate(&stop));
-        CHECK_CUDA(cudaEventRecord(start));
+        CUDA_CHECK(cudaEventCreate(&start));
+        CUDA_CHECK(cudaEventCreate(&stop));
+        CUDA_CHECK(cudaEventRecord(start));
         cudaEventQuery(start);
 
         for (int i = 0; i < num; i++)
         {
             int offset = i * N1;
-            CHECK_CUDA(cudaMemcpyAsync(d_x + offset, h_x + offset, M1, cudaMemcpyHostToDevice, streams[i]));
-            CHECK_CUDA(cudaMemcpyAsync(d_y + offset, h_y + offset, M1, cudaMemcpyHostToDevice, streams[i]));
+            CUDA_CHECK(cudaMemcpyAsync(d_x + offset, h_x + offset, M1, cudaMemcpyHostToDevice, streams[i]));
+            CUDA_CHECK(cudaMemcpyAsync(d_y + offset, h_y + offset, M1, cudaMemcpyHostToDevice, streams[i]));
             
             int block_size = 128;
             int grid_size = (N1 - 1) / block_size + 1;
             add<<<grid_size, block_size, 0, streams[i]>>>
             (d_x + offset, d_y + offset, d_z + offset, N1);
 
-            CHECK_CUDA(cudaMemcpyAsync(h_z + offset, d_z + offset, M1, cudaMemcpyDeviceToHost, streams[i]));
+            CUDA_CHECK(cudaMemcpyAsync(h_z + offset, d_z + offset, M1, cudaMemcpyDeviceToHost, streams[i]));
         }
 
-        CHECK_CUDA(cudaEventRecord(stop));
-        CHECK_CUDA(cudaEventSynchronize(stop));
+        CUDA_CHECK(cudaEventRecord(stop));
+        CUDA_CHECK(cudaEventSynchronize(stop));
         float elapsed_time;
-        CHECK_CUDA(cudaEventElapsedTime(&elapsed_time, start, stop));
+        CUDA_CHECK(cudaEventElapsedTime(&elapsed_time, start, stop));
 
         if (repeat > 0)
         {
@@ -110,8 +110,8 @@ void timing(const float *h_x, const float *h_y, float *h_z,
             t2_sum += elapsed_time * elapsed_time;
         }
 
-        CHECK_CUDA(cudaEventDestroy(start));
-        CHECK_CUDA(cudaEventDestroy(stop));
+        CUDA_CHECK(cudaEventDestroy(start));
+        CUDA_CHECK(cudaEventDestroy(stop));
 
     }
     const float t_ave = t_sum / NUM_REPEATS;

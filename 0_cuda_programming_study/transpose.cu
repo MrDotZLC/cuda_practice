@@ -19,16 +19,16 @@ int main() {
         h_A[n] = n;
     }
     float *d_A, *d_B;
-    CHECK_CUDA(cudaMalloc(&d_A, M));
-    CHECK_CUDA(cudaMalloc(&d_B, M));
-    CHECK_CUDA(cudaMemcpy(d_A, h_A, M, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMalloc(&d_A, M));
+    CUDA_CHECK(cudaMalloc(&d_B, M));
+    CUDA_CHECK(cudaMemcpy(d_A, h_A, M, cudaMemcpyHostToDevice));
 
     printf("\ntranspose with shared memory bank conflict:\n");
     timing(d_A, d_B, N, 1);
     printf("\ntranspose without shared memory bank conflict:\n");
     timing(d_A, d_B, N, 2);
 
-    CHECK_CUDA(cudaMemcpy(h_B, d_B, M, cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(h_B, d_B, M, cudaMemcpyDeviceToHost));
     if (N <= 10) {
         printf("A =\n");
         print_matrix(N, h_A);
@@ -38,8 +38,8 @@ int main() {
 
     free(h_A);
     free(h_B);
-    CHECK_CUDA(cudaFree(d_A));
-    CHECK_CUDA(cudaFree(d_B));
+    CUDA_CHECK(cudaFree(d_A));
+    CUDA_CHECK(cudaFree(d_B));
     return 0;
 }
 
@@ -52,9 +52,9 @@ void timing(const float *d_A, float *d_B, const int N, const int task) {
     float t_sum = 0, t2_sum = 0; // 耗时和，耗时平方和
     for (int repeat = 0; repeat <= NUM_REPEATS; repeat++) {
         cudaEvent_t start, stop;
-        CHECK_CUDA(cudaEventCreate(&start));
-        CHECK_CUDA(cudaEventCreate(&stop));
-        CHECK_CUDA(cudaEventRecord(start));
+        CUDA_CHECK(cudaEventCreate(&start));
+        CUDA_CHECK(cudaEventCreate(&stop));
+        CUDA_CHECK(cudaEventRecord(start));
         cudaEventQuery(start);
 
         switch (task)
@@ -71,10 +71,10 @@ void timing(const float *d_A, float *d_B, const int N, const int task) {
                 break;
         }
 
-        CHECK_CUDA(cudaEventRecord(stop));
-        CHECK_CUDA(cudaEventSynchronize(stop));
+        CUDA_CHECK(cudaEventRecord(stop));
+        CUDA_CHECK(cudaEventSynchronize(stop));
         float elapsed_time;
-        CHECK_CUDA(cudaEventElapsedTime(&elapsed_time, start, stop));
+        CUDA_CHECK(cudaEventElapsedTime(&elapsed_time, start, stop));
         printf("Time = %g ms.\n", elapsed_time);
 
         if (repeat > 0)
@@ -83,8 +83,8 @@ void timing(const float *d_A, float *d_B, const int N, const int task) {
             t2_sum += elapsed_time * elapsed_time;
         }
 
-        CHECK_CUDA(cudaEventDestroy(start));
-        CHECK_CUDA(cudaEventDestroy(stop));
+        CUDA_CHECK(cudaEventDestroy(start));
+        CUDA_CHECK(cudaEventDestroy(stop));
     }
 
     const float t_ave = t_sum / NUM_REPEATS;

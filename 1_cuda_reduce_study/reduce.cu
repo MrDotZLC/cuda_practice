@@ -352,9 +352,9 @@ float reduce(float *d_in, const int method) {
     float *d_out0;
     float *d_out1;
     float *d_out2;
-    CHECK_CUDA(cudaMalloc(&d_out0, out_mem0));
-    CHECK_CUDA(cudaMalloc(&d_out1, out_mem1));
-    CHECK_CUDA(cudaMalloc(&d_out2, out_mem2));
+    CUDA_CHECK(cudaMalloc(&d_out0, out_mem0));
+    CUDA_CHECK(cudaMalloc(&d_out1, out_mem1));
+    CUDA_CHECK(cudaMalloc(&d_out2, out_mem2));
     float *h_out0 = (float *)malloc(out_mem0);
     float *h_out1 = (float *)malloc(out_mem1);
     float *h_out2 = (float *)malloc(out_mem2);
@@ -412,17 +412,17 @@ float reduce(float *d_in, const int method) {
 
     float res = 0.0;
     if (method <= 5 && method != 4) {
-        CHECK_CUDA(cudaMemcpy(h_out0, d_out0, out_mem0, cudaMemcpyDeviceToHost));
+        CUDA_CHECK(cudaMemcpy(h_out0, d_out0, out_mem0, cudaMemcpyDeviceToHost));
         for (int i = 0; i < num_block0; ++i) {
             res += h_out0[i];
         }
     } else if (method <= 9) {
-        CHECK_CUDA(cudaMemcpy(h_out1, d_out1, out_mem1, cudaMemcpyDeviceToHost));
+        CUDA_CHECK(cudaMemcpy(h_out1, d_out1, out_mem1, cudaMemcpyDeviceToHost));
         for (int i = 0; i < num_block1; ++i) {
             res += h_out1[i];
         }
     } else if (method <= 11) {
-        CHECK_CUDA(cudaMemcpy(h_out2, d_out2, out_mem2, cudaMemcpyDeviceToHost));
+        CUDA_CHECK(cudaMemcpy(h_out2, d_out2, out_mem2, cudaMemcpyDeviceToHost));
         for (int i = 0; i < num_block2; ++i) {
             res += h_out2[i];
         }
@@ -431,8 +431,8 @@ float reduce(float *d_in, const int method) {
     free(h_out0);
     free(h_out1);
     
-    CHECK_CUDA(cudaFree(d_out0));
-    CHECK_CUDA(cudaFree(d_out1));
+    CUDA_CHECK(cudaFree(d_out0));
+    CUDA_CHECK(cudaFree(d_out1));
     
     return res;
 }
@@ -440,22 +440,22 @@ float reduce(float *d_in, const int method) {
 void timing(float *h_in, float *d_in, const int method) {
     float t_avg = 0.0, sum = 0.0;
     for (int repeat = 0; repeat < NUM_REPEATS; repeat++) {
-        CHECK_CUDA(cudaMemcpy(d_in, h_in, M, cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(d_in, h_in, M, cudaMemcpyHostToDevice));
         cudaEvent_t start, stop;
-        CHECK_CUDA(cudaEventCreate(&start));
-        CHECK_CUDA(cudaEventCreate(&stop));
-        CHECK_CUDA(cudaEventRecord(start));
+        CUDA_CHECK(cudaEventCreate(&start));
+        CUDA_CHECK(cudaEventCreate(&stop));
+        CUDA_CHECK(cudaEventRecord(start));
 
         sum = reduce(d_in, method);
 
-        CHECK_CUDA(cudaEventRecord(stop));
-        CHECK_CUDA(cudaEventSynchronize(stop));
+        CUDA_CHECK(cudaEventRecord(stop));
+        CUDA_CHECK(cudaEventSynchronize(stop));
         float elapsed_time;
-        CHECK_CUDA(cudaEventElapsedTime(&elapsed_time, start, stop));
+        CUDA_CHECK(cudaEventElapsedTime(&elapsed_time, start, stop));
         t_avg += elapsed_time;
 
-        CHECK_CUDA(cudaEventDestroy(start));
-        CHECK_CUDA(cudaEventDestroy(stop));
+        CUDA_CHECK(cudaEventDestroy(start));
+        CUDA_CHECK(cudaEventDestroy(stop));
     }
     t_avg /= NUM_REPEATS;
     printf("Average Time = %.6f ms. Sum = %.6f\n", t_avg, sum);
@@ -467,7 +467,7 @@ int main() {
         h_in[n] = 1.23;
     }
     float *d_in;
-    CHECK_CUDA(cudaMalloc((void **)&d_in, M));
+    CUDA_CHECK(cudaMalloc((void **)&d_in, M));
 
     printf("\nReduce v0 Global Memory:            "); // 使用全局内存
     timing(h_in, d_in, 0);  // 16.0ms, 41257796.000000, 精度为3位
@@ -494,6 +494,6 @@ int main() {
     printf("\nReduce v11 Shuffle:                 "); // 使用寄存器内存
     timing(h_in, d_in, 11); // 1.7ms, 41271628.000000, 精度为3位
     free(h_in);
-    CHECK_CUDA(cudaFree(d_in));
+    CUDA_CHECK(cudaFree(d_in));
     return 0;
 }

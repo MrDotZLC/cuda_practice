@@ -555,21 +555,21 @@ void timing(float *a, float *b, float *c, const int method) {
     float t_avg = 0.f;
     for (int repeat = 0; repeat < NUM_REPEATS; repeat++) {
         cudaEvent_t start, stop;
-        CHECK_CUDA(cudaEventCreate(&start));
-        CHECK_CUDA(cudaEventCreate(&stop));
-        CHECK_CUDA(cudaEventRecord(start));
+        CUDA_CHECK(cudaEventCreate(&start));
+        CUDA_CHECK(cudaEventCreate(&stop));
+        CUDA_CHECK(cudaEventRecord(start));
         cudaEventQuery(start);
 
         sgemm(a, b, c, method);
 
-        CHECK_CUDA(cudaEventRecord(stop));
-        CHECK_CUDA(cudaEventSynchronize(stop));
+        CUDA_CHECK(cudaEventRecord(stop));
+        CUDA_CHECK(cudaEventSynchronize(stop));
         float elapsed_time;
-        CHECK_CUDA(cudaEventElapsedTime(&elapsed_time, start, stop));
+        CUDA_CHECK(cudaEventElapsedTime(&elapsed_time, start, stop));
         t_avg += elapsed_time;
 
-        CHECK_CUDA(cudaEventDestroy(start));
-        CHECK_CUDA(cudaEventDestroy(stop));
+        CUDA_CHECK(cudaEventDestroy(start));
+        CUDA_CHECK(cudaEventDestroy(stop));
     }
     t_avg /= NUM_REPEATS;
     printf("Average Time = %.6f ms.\n", t_avg);
@@ -591,12 +591,12 @@ int main() {
     memset(c_host_gpu, 0, c_mem);
 
     float *a_device, *b_device, *c_device;
-    CHECK_CUDA(cudaMalloc((void **)&a_device, a_mem));
-    CHECK_CUDA(cudaMalloc((void **)&b_device, b_mem));
-    CHECK_CUDA(cudaMalloc((void **)&c_device, c_mem));
+    CUDA_CHECK(cudaMalloc((void **)&a_device, a_mem));
+    CUDA_CHECK(cudaMalloc((void **)&b_device, b_mem));
+    CUDA_CHECK(cudaMalloc((void **)&c_device, c_mem));
 
-    CHECK_CUDA(cudaMemcpy(a_device, a_host, a_mem, cudaMemcpyHostToDevice));
-    CHECK_CUDA(cudaMemcpy(b_device, b_host, b_mem, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(a_device, a_host, a_mem, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(b_device, b_host, b_mem, cudaMemcpyHostToDevice));
 
     printf("\nsGEmm v0 CPU:                               "); // CPU
     timing(a_host, b_host, c_host_cpu, 0);      //    ,              MN, 455.0ms
@@ -619,7 +619,7 @@ int main() {
     printf("\nsGEmm v9 GPU Smem Double Buffer             "); // Using double SMem to impove access
     timing(a_device, b_device, c_device, 9);
     
-    CHECK_CUDA(cudaMemcpy(c_host_gpu, c_device, c_mem, cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(c_host_gpu, c_device, c_mem, cudaMemcpyDeviceToHost));
 
     float diff = compare_matrices(M, N, c_host_cpu, c_host_gpu);
     if (diff > 0.5f) {
@@ -632,9 +632,9 @@ int main() {
     free(b_host);
     free(c_host_cpu);
     free(c_host_gpu);
-    CHECK_CUDA(cudaFree(a_device));
-    CHECK_CUDA(cudaFree(b_device));
-    CHECK_CUDA(cudaFree(c_device));
+    CUDA_CHECK(cudaFree(a_device));
+    CUDA_CHECK(cudaFree(b_device));
+    CUDA_CHECK(cudaFree(c_device));
 
     return 0;
 }

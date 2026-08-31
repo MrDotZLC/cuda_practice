@@ -21,7 +21,7 @@ int main() {
         h_x[n] = 1.23;
     }
     float *d_x;
-    CHECK_CUDA(cudaMalloc(&d_x, M));
+    CUDA_CHECK(cudaMalloc(&d_x, M));
 
     printf("\nGlobal Memory:\n");
     timing(h_x, d_x, 0); // 30ms, 123633392.000000, 精度为3位
@@ -43,7 +43,7 @@ int main() {
     timing(h_x, d_x, 8); // 6.6ms, 123000064.000000, 精度为7位
 
     free(h_x);
-    CHECK_CUDA(cudaFree(d_x));
+    CUDA_CHECK(cudaFree(d_x));
     return 0;
 }
 
@@ -246,9 +246,9 @@ float reduce(float *d_x, const int method) {
     float *d_y;
     float *d_y2;
     float *d_y3;
-    CHECK_CUDA(cudaMalloc(&d_y, ymem));
-    CHECK_CUDA(cudaMalloc(&d_y2, ymem2));
-    CHECK_CUDA(cudaGetSymbolAddress((void**)&d_y3, static_y)); // 申请静态全局内存，避免反复创建
+    CUDA_CHECK(cudaMalloc(&d_y, ymem));
+    CUDA_CHECK(cudaMalloc(&d_y2, ymem2));
+    CUDA_CHECK(cudaGetSymbolAddress((void**)&d_y3, static_y)); // 申请静态全局内存，避免反复创建
     float *h_y = (float *) malloc(ymem);
     float *h_y2 = (float *) malloc(ymem2);
 
@@ -289,11 +289,11 @@ float reduce(float *d_x, const int method) {
     }
     
     if (method < 7) {
-        CHECK_CUDA(cudaMemcpy(h_y, d_y, ymem, cudaMemcpyDeviceToHost));
+        CUDA_CHECK(cudaMemcpy(h_y, d_y, ymem, cudaMemcpyDeviceToHost));
     } else if (method == 7) {
-        CHECK_CUDA(cudaMemcpy(h_y2, d_y2, sizeof(float), cudaMemcpyDeviceToHost));
+        CUDA_CHECK(cudaMemcpy(h_y2, d_y2, sizeof(float), cudaMemcpyDeviceToHost));
     } else if (method == 8) {
-        CHECK_CUDA(cudaMemcpy(h_y2, d_y3, sizeof(float), cudaMemcpyDeviceToHost));
+        CUDA_CHECK(cudaMemcpy(h_y2, d_y3, sizeof(float), cudaMemcpyDeviceToHost));
     }
     
     float result = 0.0;
@@ -308,31 +308,31 @@ float reduce(float *d_x, const int method) {
     }
     free(h_y);
     free(h_y2);
-    CHECK_CUDA(cudaFree(d_y));
-    CHECK_CUDA(cudaFree(d_y2));
-    // CHECK_CUDA(cudaFree(d_y3));
+    CUDA_CHECK(cudaFree(d_y));
+    CUDA_CHECK(cudaFree(d_y2));
+    // CUDA_CHECK(cudaFree(d_y3));
     return result;
 }
 
 void timing(float *h_x, float *d_x, const int method) {
     float sum = 0, t_avg = 0;
     for (int repeat = 0; repeat < NUM_REPEATS; repeat++) {
-        CHECK_CUDA(cudaMemcpy(d_x, h_x, M, cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(d_x, h_x, M, cudaMemcpyHostToDevice));
         cudaEvent_t start, stop;
-        CHECK_CUDA(cudaEventCreate(&start));
-        CHECK_CUDA(cudaEventCreate(&stop));
-        CHECK_CUDA(cudaEventRecord(start));
+        CUDA_CHECK(cudaEventCreate(&start));
+        CUDA_CHECK(cudaEventCreate(&stop));
+        CUDA_CHECK(cudaEventRecord(start));
 
         sum = reduce(d_x, method);
 
-        CHECK_CUDA(cudaEventRecord(stop));
-        CHECK_CUDA(cudaEventSynchronize(stop));
+        CUDA_CHECK(cudaEventRecord(stop));
+        CUDA_CHECK(cudaEventSynchronize(stop));
         float elapsed_time;
-        CHECK_CUDA(cudaEventElapsedTime(&elapsed_time, start, stop));
+        CUDA_CHECK(cudaEventElapsedTime(&elapsed_time, start, stop));
         t_avg += elapsed_time;
 
-        CHECK_CUDA(cudaEventDestroy(start));
-        CHECK_CUDA(cudaEventDestroy(stop));
+        CUDA_CHECK(cudaEventDestroy(start));
+        CUDA_CHECK(cudaEventDestroy(stop));
     }
     t_avg /= NUM_REPEATS;
     printf("sum = %.6f, average_time=%.6f\n", sum, t_avg);

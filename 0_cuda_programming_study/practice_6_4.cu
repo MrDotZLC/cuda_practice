@@ -6,10 +6,10 @@ int main(int argc, char *argv[]) {
     if (argc > 1) {
         device_id = atoi(argv[1]);
     }
-    CHECK_CUDA(cudaSetDevice(device_id));
+    CUDA_CHECK(cudaSetDevice(device_id));
     
     cudaDeviceProp device_prop;
-    CHECK_CUDA(cudaGetDeviceProperties(&device_prop, device_id));
+    CUDA_CHECK(cudaGetDeviceProperties(&device_prop, device_id));
 
     printf("Using Device %d: %s\n", device_id, device_prop.name);
     printf("  Compute Capability: %d.%d\n", device_prop.major, device_prop.minor);

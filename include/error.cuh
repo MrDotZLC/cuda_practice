@@ -1,7 +1,7 @@
 #pragma once
 #include <stdio.h>
 
-#define CHECK_CUDA(call)                                       \
+#define CUDA_CHECK(call)                                       \
     do                                                    \
     {                                                     \
         const cudaError_t error_code = call;              \

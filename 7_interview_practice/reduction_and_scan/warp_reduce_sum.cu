@@ -49,7 +49,7 @@ float reduce(float* d_in) {
     int num_blocks = (N + BLOCK_SIZE - 1) / BLOCK_SIZE;
     int out_mem = num_blocks * sizeof(float);
     float *d_out;
-    CHECK_CUDA(cudaMalloc(&d_out, out_mem));
+    CUDA_CHECK(cudaMalloc(&d_out, out_mem));
     float *h_out = (float*)malloc(out_mem);
     
     dim3 grid(num_blocks, 1);
@@ -58,18 +58,18 @@ float reduce(float* d_in) {
     float sum = 0.f;
 
     block_reduce_sum_kernel<<<grid, block>>>(d_in, d_out, N);
-    CHECK_CUDA(cudaGetLastError());
+    CUDA_CHECK(cudaGetLastError());
 
     float* d_final;
-    CHECK_CUDA(cudaMalloc(&d_final, sizeof(float)));
+    CUDA_CHECK(cudaMalloc(&d_final, sizeof(float)));
     block_reduce_sum_kernel<<<1, block>>>(d_out, d_final, num_blocks);
-    CHECK_CUDA(cudaGetLastError());
+    CUDA_CHECK(cudaGetLastError());
 
-    CHECK_CUDA(cudaMemcpy(&sum, d_final, sizeof(float),
+    CUDA_CHECK(cudaMemcpy(&sum, d_final, sizeof(float),
                           cudaMemcpyDeviceToHost));
 
-    CHECK_CUDA(cudaFree(d_out));
-    CHECK_CUDA(cudaFree(d_final));
+    CUDA_CHECK(cudaFree(d_out));
+    CUDA_CHECK(cudaFree(d_final));
     return sum;
 }
 
@@ -80,11 +80,11 @@ int main() {
         h_in[n] = 1.0;
     }
     float *d_in;
-    CHECK_CUDA(cudaMalloc((void**)&d_in, M));
-    CHECK_CUDA(cudaMemcpy(d_in, h_in, M, cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMalloc((void**)&d_in, M));
+    CUDA_CHECK(cudaMemcpy(d_in, h_in, M, cudaMemcpyHostToDevice));
 
     printf("\nwarp_reduce_sum:            %f\n", reduce(d_in));
-    CHECK_CUDA(cudaFree(d_in));
+    CUDA_CHECK(cudaFree(d_in));
     free(h_in);
     return 0;
 }
