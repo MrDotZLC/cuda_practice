@@ -1,8 +1,9 @@
 #include "error.cuh"
 #include <cuda_runtime.h>
 
-__global__ void vector_add_kernel(const float* A, 
-                                const float* B, float* C, int N) {
+__global__ void vector_add_kernel(const float* __restrict__ A,
+                                  const float* __restrict__ B,
+                                  float* __restrict__ C, int N) {
     // global thread id
     int idx = blockDim.x * blockIdx.x + threadIdx.x;
     // 越界保护：N 不一定是 blockDim.x 的整数倍
