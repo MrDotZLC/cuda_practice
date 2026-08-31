@@ -62,7 +62,7 @@ __global__ void reduce2(float *d_in, float *d_out) {
     }
 }
 
-// 银行冲突 bank_conflict：多线程访问同一warp会串行化
+// bank 冲突 bank_conflict：多线程访问同一warp会串行化
 __global__ void reduce3(float *d_in, float *d_out) {
     __shared__ float sdata[THREAD_PER_BLOCK];
 
