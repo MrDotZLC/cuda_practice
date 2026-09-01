@@ -32,6 +32,8 @@ __global__ void col_reduce_stage1(const float* __restrict__ d_input,
         sum += d_input[static_cast<size_t>(row) * C + col];
     }
 
+    // 每个线程独立负责一个 column，
+    // 因此不需要 shared-memory / warp reduction。
     d_partial[static_cast<size_t>(blockIdx.x) * C + col] = sum;
 }
 
@@ -80,6 +82,8 @@ void col_reduce_matrix(const float* d_input, float* d_output,
     // 查询 GPU SM 数量
     cudaDeviceProp prop;
     CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
+    std::cout << "GPU: " << prop.name << ", SM count: " << prop.multiProcessorCount
+              << std::endl;
 
     // 经验 benchmark 值：实际最佳值需根据 GPU 测试
     constexpr int BLOCKS_PER_SM = 4;
@@ -100,7 +104,12 @@ void col_reduce_matrix(const float* d_input, float* d_output,
     col_reduce_stage1<<<1, BLOCK_SIZE>>>(d_partial, d_output, grid_size, C);
 
     CUDA_CHECK(cudaGetLastError());
+
+    // 如果 API 要保证返回时计算完成，
+    // 这里同步；否则 cudaFree 本身也会产生必要的同步语义，
+    // 但显式同步更容易定位 kernel runtime error。
     CUDA_CHECK(cudaDeviceSynchronize());
+
     CUDA_CHECK(cudaFree(d_partial));
 }
 
