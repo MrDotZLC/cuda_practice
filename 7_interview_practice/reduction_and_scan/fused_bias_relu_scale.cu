@@ -7,7 +7,6 @@ __global__ void fused_bias_relu_scale_kernel(const float* __restrict__ X,
                                       float* __restrict__ O, int N,
                                       float scale) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    #pragma unroll
     for (int i = tid; i < N; i += gridDim.x * blockDim.x) {
         float v = X[i] * Bias[i];
         v = v > 0.f ? v : 0.f;
