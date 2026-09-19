@@ -35,3 +35,7 @@ void transpose(const float* d_A, float* d_B, int R, int C) {
     dim3 grid((C + TILE - 1) / TILE, (R + TILE - 1) / TILE);
     transposeShared<<<grid, block>>>(d_A, d_B, R, C);
 }
+
+int main() {
+    return 0;
+}

@@ -89,3 +89,7 @@ void softmax_online(const float* __restrict__ d_in,
     dim3 grid(num_rows);
     softmax_online_kernel<<<grid, block>>>(d_in, d_out, num_rows, row_len);
 }
+
+int main() {
+    return 0;
+}

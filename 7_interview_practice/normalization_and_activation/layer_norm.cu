@@ -160,3 +160,7 @@ void layer_norm_welford(const float* __restrict__ d_in,
     layer_norm_welford_kernel<<<grid, block, shared_mem_size>>>(
         d_in, d_gamma, d_beta, d_out, hidden_dim, eps);
 }
+
+int main() {
+    return 0;
+}

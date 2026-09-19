@@ -204,3 +204,7 @@ void cuda_core_sgemm_double_buf(
     dim3 grid((N + BN - 1) / BN, (M + BM - 1) / BM);
     cuda_core_sgemm_double_buf_kernel<<<grid, block>>>(A, B, C, M, N, K, alpha, beta);
 }
+
+int main() {
+    return 0;
+}

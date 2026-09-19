@@ -51,3 +51,7 @@ __global__ void rmsNormKernel(const float* __restrict__ in,
     for (int i = threadIdx.x; i < hidden_dim; i += blockDim.x)
         y[i] = x[i] * inv_rms * gamma[i];
 }
+
+int main() {
+    return 0;
+}

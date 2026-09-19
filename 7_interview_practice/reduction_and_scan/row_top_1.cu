@@ -33,8 +33,9 @@ __global__ void row_top_1_kernel(const float* d_in, float* d_out_val,
     }
 
     // 每线程结果存入共享内存
-    __shared__ float s_max_val[blockDim.x];
-    __shared__ int s_max_idx[blockDim.x];
+    extern __shared__ unsigned char smem[];
+    float* s_max_val = reinterpret_cast<float*>(smem);
+    int* s_max_idx = reinterpret_cast<int*>(s_max_val + blockDim.x);
     s_max_val[tid] = max_val;
     s_max_idx[tid] = max_idx;
     __syncthreads();
@@ -72,5 +73,11 @@ void row_top_1(const float* d_in, float* d_out_val, int* d_out_idx, int R,
     else
         block_size = 256;
 
-    row_top_1_kernel<<<R, block_size>>>(d_in, d_out_val, d_out_idx, R, C);
+    size_t smem_size = block_size * (sizeof(float) + sizeof(int));
+
+    row_top_1_kernel<<<R, block_size, smem_size>>>(d_in, d_out_val, d_out_idx, R, C);
+}
+
+int main() {
+    return 0;
 }

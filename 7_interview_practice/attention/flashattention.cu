@@ -1,4 +1,3 @@
-#include "attention.h"
 #include <cuda_runtime.h>
 #include <cuda_fp16.h>
 #include <float.h>
@@ -234,4 +233,8 @@ void flash_attn_v2_onepass(
 
     // 假设使用者在自己的库中定义了 CUDA_CHECK_LAST 宏
     // CUDA_CHECK_LAST();
+}
+
+int main() {
+    return 0;
 }

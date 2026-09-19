@@ -74,3 +74,7 @@ void cuda_core_sgemm_smem(
               (M + TILE - 1) / TILE);
     cuda_core_sgemm_smem_kernel<<<grid, block>>>(A, B, C, M, N, K, alpha, beta);
 }
+
+int main() {
+    return 0;
+}
