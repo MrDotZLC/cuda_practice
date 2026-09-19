@@ -6,6 +6,8 @@
 #include <numeric>
 #include <assert.h>
 
+static constexpr int MAX_BLOCKS = 4096;
+
 __device__ __forceinline__ 
 float warp_reduce_sum_kernel(float val) {
     unsigned mask = 0xffffffff;
@@ -85,7 +87,8 @@ float reduce_sum(const std::vector<float>& input) {
     size_t current_size = N;
 
     while (current_size > 1) {
-        int grid_size = (current_size + block_size - 1) / block_size;
+        int grid_size = (int)min((size_t)MAX_BLOCKS,
+                             (current_size + block_size - 1) / block_size);
         // 归约 block
         reduce_sum_kernel<<<grid_size, block_size>>>(d_buf1, d_buf2,
                                                      current_size);
